@@ -2,42 +2,57 @@
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-const trim = (s) => (typeof s === 'string' ? s.trim() : s);
+const isProd = process.env.NODE_ENV === 'production';
 
-const raw = trim(process.env.DATABASE_URL || '');
-const conn = raw || ''; // si vide, on bascule sur vars PG_*
-const url = conn ? new URL(conn) : null;
+function fromUrl(conn) {
+  const u = new URL(conn);
 
-const sslMode = url?.searchParams.get('sslmode');
-const useSsl = sslMode === 'require' || process.env.FORCE_PG_SSL === '1';
+  // SSL si ?sslmode=require ou si FORCE_PG_SSL=1
+  const sslmode = u.searchParams.get('sslmode');
+  const useSsl = sslmode === 'require' || process.env.FORCE_PG_SSL === '1';
 
-// ➜ LOG DEBUG (non sensible) : présence des variables
-console.log('ENV DEBUG → has DATABASE_URL:', !!raw,
-            'PGHOST:', !!process.env.PGHOST,
-            'PGUSER:', !!process.env.PGUSER,
-            'PGDATABASE:', !!process.env.PGDATABASE,
-            'prod:', process.env.NODE_ENV === 'production');
+  // Normalise/encode le mot de passe pour éviter les espaces/caratères non encodés
+  const cleanPwd = decodeURIComponent(u.password || '').trim();
+  u.password = encodeURIComponent(cleanPwd);
 
-// Si pas de DATABASE_URL, on tente les variables PG_*
-let sequelize;
-if (conn) {
-  console.log('DB cfg → via DATABASE_URL host:', url.hostname, 'ssl:', !!useSsl);
-  sequelize = new Sequelize(conn, {
+  return new Sequelize(u.toString(), {
     dialect: 'postgres',
     logging: false,
-    dialectOptions: useSsl ? { ssl: { require: true, rejectUnauthorized: false } } : {}
-  });
-} else {
-  const host = process.env.PGHOST || '127.0.0.1';
-  const port = parseInt(process.env.PGPORT || '5432', 10);
-  const database = process.env.PGDATABASE || 'railway';
-  const user = process.env.PGUSER || 'postgres';
-  const password = process.env.PGPASSWORD || '';
-  console.warn('⚠️ DATABASE_URL absente — tentative via PG_* → host:', host);
-  sequelize = new Sequelize(database, user, password, {
-    host, port, dialect: 'postgres', logging: false
+    dialectOptions: useSsl ? { ssl: { require: true, rejectUnauthorized: false } } : {},
+    pool: { max: 10, min: 0, idle: 10000, acquire: 30000 },
   });
 }
+
+function fromPgVars() {
+  const host = (process.env.PGHOST || '127.0.0.1').trim();
+  const port = parseInt((process.env.PGPORT || '5432').trim(), 10);
+  const database = (process.env.PGDATABASE || 'railway').trim();
+  const username = (process.env.PGUSER || 'postgres').trim();
+  const password = (process.env.PGPASSWORD || '').trim();
+
+  if (isProd && (!host || !database || !username || !password)) {
+    throw new Error('Variables PG_* manquantes pour la connexion Postgres.');
+  }
+
+  const useSsl = process.env.FORCE_PG_SSL === '1';
+
+  return new Sequelize(database, username, password, {
+    host,
+    port,
+    dialect: 'postgres',
+    logging: false,
+    dialectOptions: useSsl ? { ssl: { require: true, rejectUnauthorized: false } } : {},
+    pool: { max: 10, min: 0, idle: 10000, acquire: 30000 },
+  });
+}
+
+const rawUrl = (process.env.DATABASE_URL || '').trim();
+
+if (isProd && !rawUrl && !process.env.PGHOST) {
+  throw new Error('DATABASE_URL manquante en production et aucune variable PG_* définie.');
+}
+
+const sequelize = rawUrl ? fromUrl(rawUrl) : fromPgVars();
 
 module.exports = sequelize;
 
