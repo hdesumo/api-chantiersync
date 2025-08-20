@@ -2,38 +2,42 @@
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-const conn = process.env.DATABASE_URL;
+const trim = (s) => (typeof s === 'string' ? s.trim() : s);
 
-if (!conn && process.env.NODE_ENV === 'production') {
-  // En prod, on refuse de tomber sur localhost par accident
-  throw new Error('DATABASE_URL manquante en production');
-}
-
+const raw = trim(process.env.DATABASE_URL || '');
+const conn = raw || ''; // si vide, on bascule sur vars PG_*
 const url = conn ? new URL(conn) : null;
+
 const sslMode = url?.searchParams.get('sslmode');
 const useSsl = sslMode === 'require' || process.env.FORCE_PG_SSL === '1';
 
-// Log non-sensible pour vérifier la prise en compte (host/ssl)
-console.log('DB cfg → host:', url?.hostname || process.env.PGHOST || '127.0.0.1',
-            'ssl:', !!useSsl, 'prod:', process.env.NODE_ENV === 'production');
+// ➜ LOG DEBUG (non sensible) : présence des variables
+console.log('ENV DEBUG → has DATABASE_URL:', !!raw,
+            'PGHOST:', !!process.env.PGHOST,
+            'PGUSER:', !!process.env.PGUSER,
+            'PGDATABASE:', !!process.env.PGDATABASE,
+            'prod:', process.env.NODE_ENV === 'production');
 
-const sequelize = conn
-  ? new Sequelize(conn, {
-      dialect: 'postgres',
-      logging: false,
-      dialectOptions: useSsl ? { ssl: { require: true, rejectUnauthorized: false } } : {}
-    })
-  : new Sequelize(
-      process.env.PGDATABASE || 'chantiersync',
-      process.env.PGUSER || 'postgres',
-      process.env.PGPASSWORD || 'postgres',
-      {
-        host: process.env.PGHOST || '127.0.0.1', // évite ::1
-        port: parseInt(process.env.PGPORT || '5432', 10),
-        dialect: 'postgres',
-        logging: false
-      }
-    );
+// Si pas de DATABASE_URL, on tente les variables PG_*
+let sequelize;
+if (conn) {
+  console.log('DB cfg → via DATABASE_URL host:', url.hostname, 'ssl:', !!useSsl);
+  sequelize = new Sequelize(conn, {
+    dialect: 'postgres',
+    logging: false,
+    dialectOptions: useSsl ? { ssl: { require: true, rejectUnauthorized: false } } : {}
+  });
+} else {
+  const host = process.env.PGHOST || '127.0.0.1';
+  const port = parseInt(process.env.PGPORT || '5432', 10);
+  const database = process.env.PGDATABASE || 'railway';
+  const user = process.env.PGUSER || 'postgres';
+  const password = process.env.PGPASSWORD || '';
+  console.warn('⚠️ DATABASE_URL absente — tentative via PG_* → host:', host);
+  sequelize = new Sequelize(database, user, password, {
+    host, port, dialect: 'postgres', logging: false
+  });
+}
 
 module.exports = sequelize;
 
