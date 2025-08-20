@@ -92,6 +92,8 @@ app.use('/api/reports', reportRoutes);
 
 // Healthcheck pour Railway
 app.get('/status', (_req, res) => res.sendStatus(204));
+app.get('/', (_req, res) => res.sendStatus(204));
+app.head('/', (_req, res) => res.sendStatus(204));
 
 /* ===========================
    404 + handler global erreurs
