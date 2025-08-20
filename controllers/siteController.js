@@ -45,5 +45,71 @@ exports.update = async (req, res) => {
   });
   if (!row) return res.status(404).json({ error: 'Not found' });
   const { code, name, location, lat, lng, status, start_date, end_date } = req.body || {};
-  await row.update({ code
+  await row.update({ code, name, location, lat, lng, status, start_date, end_date });
+  res.json(row);
+};
+
+// DELETE
+exports.remove = async (req, res) => {
+  const row = await Site.findOne({
+    where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
+  });
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  await row.destroy();
+  res.status(204).end();
+};
+
+/* ===========================
+   QR CODE ENDPOINTS
+   =========================== */
+
+// PNG à imprimer (protégé par auth)
+exports.qrPng = async (req, res) => {
+  const site = await Site.findOne({
+    where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
+  });
+  if (!site) return res.status(404).json({ error: 'Not found' });
+
+  // token si absent
+  if (!site.qr_token) { site.qr_token = randomUUID(); await site.save(); }
+
+  // contenu encodé dans le QR (préfixé pour filtrer côté scanner)
+  const text = `site:${site.qr_token}`;
+
+  // taille paramétrable (pixels)
+  const size = Math.max(
+    128,
+    Math.min(parseInt(req.query.size || '256', 10), 1024)
+  );
+
+  const png = await QRCode.toBuffer(text, {
+    type: 'png',
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: size
+  });
+
+  res.set('Content-Type', 'image/png');
+  res.send(png);
+};
+
+// Régénérer le token (invalide les anciens QR)
+exports.rotateQr = async (req, res) => {
+  const site = await Site.findOne({
+    where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
+  });
+  if (!site) return res.status(404).json({ error: 'Not found' });
+  site.qr_token = randomUUID();
+  await site.save();
+  res.json({ qr_token: site.qr_token });
+};
+
+// Récupération par token (scan)
+exports.getByToken = async (req, res) => {
+  const site = await Site.findOne({
+    where: { qr_token: req.params.token, enterprise_id: req.user.enterprise_id }
+  });
+  if (!site) return res.status(404).json({ error: 'Not found' });
+  res.json(site);
+};
 
