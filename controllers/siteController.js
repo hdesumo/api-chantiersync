@@ -1,47 +1,10 @@
-// en haut
+// controllers/siteController.js
+const { Op } = require('sequelize');
 const QRCode = require('qrcode');
 const { randomUUID } = require('crypto');
 const { Site } = require('../models');
 
-exports.qrPng = async (req, res) => {
-  const site = await Site.findOne({
-    where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
-  });
-  if (!site) return res.status(404).json({ error: 'Not found' });
-
-  // Sécurité: s'assure qu'on a bien un token
-  if (!site.qr_token) { site.qr_token = randomUUID(); await site.save(); }
-
-  // Contenu du QR (préfixé, pratique pour filtrer côté scanner)
-  const text = `site:${site.qr_token}`;
-  const png = await QRCode.toBuffer(text, {
-    type: 'png', errorCorrectionLevel: 'M', margin: 1, scale: 8
-  });
-  res.set('Content-Type', 'image/png');
-  res.send(png);
-};
-
-exports.rotateQr = async (req, res) => {
-  const site = await Site.findOne({
-    where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
-  });
-  if (!site) return res.status(404).json({ error: 'Not found' });
-  site.qr_token = randomUUID();
-  await site.save();
-  res.json({ qr_token: site.qr_token });
-};
-
-exports.getByToken = async (req, res) => {
-  const site = await Site.findOne({
-    where: { qr_token: req.params.token, enterprise_id: req.user.enterprise_id }
-  });
-  if (!site) return res.status(404).json({ error: 'Not found' });
-  res.json(site);
-};
-
-const { Op } = require('sequelize');
-const { Site } = require('../models');
-
+// LIST — filtre texte (code/name/location)
 exports.list = async (req, res) => {
   const where = { enterprise_id: req.user.enterprise_id };
   const q = (req.query.q || '').trim();
@@ -52,10 +15,11 @@ exports.list = async (req, res) => {
       { location: { [Op.iLike]: `%${q}%` } },
     ];
   }
-  const rows = await Site.findAll({ where, order: [['createdAt','DESC']] });
+  const rows = await Site.findAll({ where, order: [['createdAt', 'DESC']] });
   res.json(rows);
 };
 
+// CREATE
 exports.create = async (req, res) => {
   const { code, name, location, lat, lng, start_date } = req.body || {};
   if (!code || !name) return res.status(400).json({ error: 'code & name required' });
@@ -65,6 +29,7 @@ exports.create = async (req, res) => {
   res.status(201).json(row);
 };
 
+// GET ONE
 exports.getOne = async (req, res) => {
   const row = await Site.findOne({
     where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
@@ -73,6 +38,7 @@ exports.getOne = async (req, res) => {
   res.json(row);
 };
 
+// UPDATE
 exports.update = async (req, res) => {
   const row = await Site.findOne({
     where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
@@ -83,6 +49,7 @@ exports.update = async (req, res) => {
   res.json(row);
 };
 
+// DELETE
 exports.remove = async (req, res) => {
   const row = await Site.findOne({
     where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
@@ -91,4 +58,24 @@ exports.remove = async (req, res) => {
   await row.destroy();
   res.status(204).end();
 };
+
+/* ===========================
+   QR CODE ENDPOINTS
+   =========================== */
+
+// PNG à imprimer (protégé par auth)
+exports.qrPng = async (req, res) => {
+  const site = await Site.findOne({
+    where: { id: req.params.id, enterprise_id: req.user.enterprise_id }
+  });
+  if (!site) return res.status(404).json({ error: 'Not found' });
+
+  // token si absent
+  if (!site.qr_token) { site.qr_token = randomUUID(); await site.save(); }
+
+  // contenu encodé dans le QR (préfixé pour filtrer côté scanner)
+  const text = `site:${site.qr_token}`;
+
+  // taille paramétrable (pixels)
+  const size = Math.max(128, Math.min
 
