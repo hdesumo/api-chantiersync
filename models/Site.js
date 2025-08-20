@@ -9,6 +9,12 @@ module.exports = (sequelize, DataTypes) => {
     lat: { type: DataTypes.FLOAT },
     lng: { type: DataTypes.FLOAT },
     status: { type: DataTypes.ENUM('active','paused','closed'), defaultValue: 'active' },
+      qr_token: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        allowNull: false,
+        unique: true,
+      },
     start_date: { type: DataTypes.DATE },
     end_date: { type: DataTypes.DATE }
   }, { tableName: 'sites' });
