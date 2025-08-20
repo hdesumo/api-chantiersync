@@ -1,53 +1,39 @@
 // config/database.js
+require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-/**
- * Priorité :
- * 1) DATABASE_URL (format URI Postgres, ex. Railway public/private)
- * 2) Variables DB_* (fallback dev local)
- *
- * SSL :
- * - Activé automatiquement si l'URL contient `sslmode=require` ou `sslmode=no-verify`
- * - Ou si FORCE_PG_SSL=1
- * - Utilise rejectUnauthorized:false pour éviter l'erreur "self-signed certificate"
- */
-const {
-  DATABASE_URL,
-  DB_USER = 'cs',
-  DB_PASS = 'cs',
-  DB_HOST = 'localhost',
-  DB_PORT = '5432',
-  DB_NAME = 'chantiersync',
-  FORCE_PG_SSL,
-} = process.env;
+const conn = process.env.DATABASE_URL;
 
-// URL finale (fallback si DATABASE_URL absent)
-const url =
-  (DATABASE_URL && DATABASE_URL.trim()) ||
-  `postgresql://${encodeURIComponent(DB_USER)}:${encodeURIComponent(DB_PASS)}@${DB_HOST}:${DB_PORT}/${DB_NAME}`;
+if (!conn && process.env.NODE_ENV === 'production') {
+  // En prod, on refuse de tomber sur localhost par accident
+  throw new Error('DATABASE_URL manquante en production');
+}
 
-// Détection TLS (require / no-verify) ou forçage via env
-const needSSL =
-  /sslmode=(require|no-verify)/i.test(url) || FORCE_PG_SSL === '1';
+const url = conn ? new URL(conn) : null;
+const sslMode = url?.searchParams.get('sslmode');
+const useSsl = sslMode === 'require' || process.env.FORCE_PG_SSL === '1';
 
-const sequelize = new Sequelize(url, {
-  dialect: 'postgres',
-  logging: false, // mets true en cas de debug SQL
-  dialectOptions: needSSL
-    ? {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false, // évite "self-signed certificate in certificate chain"
-        },
+// Log non-sensible pour vérifier la prise en compte (host/ssl)
+console.log('DB cfg → host:', url?.hostname || process.env.PGHOST || '127.0.0.1',
+            'ssl:', !!useSsl, 'prod:', process.env.NODE_ENV === 'production');
+
+const sequelize = conn
+  ? new Sequelize(conn, {
+      dialect: 'postgres',
+      logging: false,
+      dialectOptions: useSsl ? { ssl: { require: true, rejectUnauthorized: false } } : {}
+    })
+  : new Sequelize(
+      process.env.PGDATABASE || 'chantiersync',
+      process.env.PGUSER || 'postgres',
+      process.env.PGPASSWORD || 'postgres',
+      {
+        host: process.env.PGHOST || '127.0.0.1', // évite ::1
+        port: parseInt(process.env.PGPORT || '5432', 10),
+        dialect: 'postgres',
+        logging: false
       }
-    : {},
-  pool: {
-    max: 10,
-    min: 0,
-    acquire: 30_000,
-    idle: 10_000,
-  },
-});
+    );
 
 module.exports = sequelize;
 
