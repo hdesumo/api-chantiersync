@@ -1,78 +1,26 @@
 // routes/reportRoutes.js
-const router = require('express').Router();
-const auth = require('../middleware/auth');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
-const ctrl = require('../controllers/reportController');
+'use strict';
 
-// Dossier d'upload
-const uploadDir = path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const express = require('express');
+const router = express.Router();
 
-// Types autorisés (photos + PDF)
-const ALLOWED = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/heic',
-  'image/heif',
-  'image/heic-sequence',
-  'image/heif-sequence',
-  'application/pdf',
-]);
+// Auth middleware
+const { authMiddleware } = require('../middleware/auth');
 
-// Fallback extension par MIME si le nom original n'en contient pas
-const EXT_BY_MIME = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'image/gif': '.gif',
-  'image/heic': '.heic',
-  'image/heif': '.heif',
-  'image/heic-sequence': '.heic',
-  'image/heif-sequence': '.heif',
-  'application/pdf': '.pdf',
-};
+// Controller
+const reportController = require('../controllers/reportController');
 
-// Storage: nom de fichier sûr + extension
-const storage = multer.diskStorage({
-  destination: uploadDir,
-  filename: (_req, file, cb) => {
-    const rand = crypto.randomBytes(16).toString('hex');
-    const extFromName = path.extname(file.originalname || '').toLowerCase();
-    const ext = extFromName || EXT_BY_MIME[file.mimetype] || '';
-    cb(null, `${rand}${ext}`);
-  },
-});
+// Garde-fou: si une méthode manque dans le controller, retourne 501 plutôt que planter Express
+const ensure = (name) =>
+  (typeof reportController?.[name] === 'function')
+    ? reportController[name]
+    : (_req, res) => res.status(501).json({ error: `Controller method ${name} not implemented` });
 
-// Filtre MIME (refuse tout ce qui n'est pas dans ALLOWED)
-function fileFilter(_req, file, cb) {
-  if (!ALLOWED.has(file.mimetype)) {
-    return cb(new Error('Invalid file type'));
-  }
-  cb(null, true);
-}
+// GET /api/reports  → liste paginée (laisse ton controller gérer la forme {items:[], nextOffset} si c'est déjà le cas)
+router.get('/reports', authMiddleware, ensure('list'));
 
-// Limites (10 Mo)
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter,
-});
-
-router.use(auth);
-
-// Rapports
-router.get('/', ctrl.list);
-router.post('/', ctrl.create);
-router.get('/:id', ctrl.getOne);
-
-// Pièces jointes
-router.post('/:id/attachments', upload.single('file'), ctrl.addAttachment);
-router.delete('/:id/attachments/:mediaId', ctrl.deleteAttachment);
+// DELETE /api/reports/:reportId/attachments/:fileName  → suppression d’une pièce jointe
+router.delete('/reports/:reportId/attachments/:fileName', authMiddleware, ensure('deleteAttachment'));
 
 module.exports = router;
 
