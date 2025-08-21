@@ -1,133 +1,150 @@
 // app.js
+'use strict';
+
 require('dotenv').config();
-console.log('ENV check → DATABASE_URL present:', !!process.env.DATABASE_URL);
 const express = require('express');
-const path = require('path');
 const cors = require('cors');
-const morgan = require('morgan');
+const jwt = require('jsonwebtoken');
 
-const app = express();
-
-/* ===========================
-   CORS multi-origins (wildcards)
-   =========================== */
-const parseCsv = (s = '') => s.split(',').map(x => x.trim()).filter(Boolean);
-const allowlist = parseCsv(process.env.CORS_ORIGIN || 'http://localhost:3000');
-
-function isOriginAllowed(origin) {
-  if (!origin) return true; // curl/SSR/outils
-  return allowlist.some((pattern) => {
-    if (pattern === '*') return true;
-    if (pattern.startsWith('regex:')) {
-      try { return new RegExp(pattern.slice(6)).test(origin); } catch { return false; }
-    }
-    if (pattern.startsWith('*.')) {
-      const suffix = pattern.slice(1); // ".vercel.app"
-      return origin.endsWith(suffix);
-    }
-    return origin === pattern;
-  });
-}
-
-const corsOptions = {
-  origin: (origin, cb) => isOriginAllowed(origin) ? cb(null, true) : cb(null, false),
-  credentials: true,
-  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With'],
-  exposedHeaders: ['Content-Disposition'],
-  maxAge: 86400,
-  preflightContinue: false,
-  optionsSuccessStatus: 204,
-};
-
-app.use((req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-/* ===========================
-   Parsers / logs / statiques
-   =========================== */
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, process.env.UPLOAD_DIR || 'uploads')));
-
-/* ===========================
-   DB init (Sequelize)
-   =========================== */
+// DB & models
 const sequelize = require('./config/database');
-(async () => {
-  try {
-    await sequelize.authenticate();
-    // Sync via ./models si dispo, sinon fallback sequelize.sync()
-    let synced = false;
-    try {
-      const db = require('./models');
-      if (db?.sequelize?.sync) { await db.sequelize.sync(); synced = true; }
-    } catch {}
-    if (!synced) { await sequelize.sync(); }
+let Models = {};
+try {
+  Models = require('./models'); // { Site, Report, ... } si présent
+} catch (_) { /* ok si pas d’index */ }
 
-    // Seed (optionnel)
-    try {
-      const { seedIfEmpty } = require('./seed');
-      if (typeof seedIfEmpty === 'function') await seedIfEmpty();
-    } catch {}
-    // eslint-disable-next-line no-console
-    console.log('✅ DB connected & synced');
-  } catch (e) {
-    console.error('❌ DB init error:', e.message);
-  }
-})();
-
-/* ===========================
-   Routes
-   =========================== */
+// Routes métier
 const authRoutes = require('./routes/authRoutes');
 const siteRoutes = require('./routes/siteRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 
+const app = express();
+
+/* ============ Middleware de base ============ */
+app.disable('x-powered-by');
+app.set('trust proxy', true);
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// CORS multi-origines (liste séparée par des virgules dans CORS_ORIGIN)
+const allowed = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, cb) {
+    if (!origin) return cb(null, true);                    // clients non-browsers / cURL
+    if (allowed.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS not allowed from ' + origin));
+  },
+  credentials: true,
+  exposedHeaders: ['Content-Disposition'],
+}));
+
+// Réponse timeout (25s) pour éviter les pendings
+app.use((req, res, next) => {
+  res.setTimeout(25_000, () => {
+    if (!res.headersSent) res.status(504).json({ error: 'timeout' });
+  });
+  next();
+});
+
+// (Option) morgan si installé
+try { app.use(require('morgan')('tiny')); } catch (_) {}
+
+/* ============ Healthchecks ============ */
+// 204 No Content sur HEAD /
+app.head('/', (_req, res) => res.status(204).end());
+// 204 No Content sur HEAD /status
+app.head('/status', (_req, res) => res.status(204).end());
+
+/* ============ DEBUG endpoints (faciles à retirer ensuite) ============ */
+function bearer(req, res, next) {
+  try {
+    const h = req.headers.authorization || '';
+    const m = h.match(/^Bearer\s+(.+)$/i);
+    if (!m) return res.status(401).json({ error: 'Missing token' });
+    req.user = jwt.verify(m[1], process.env.JWT_SECRET);
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+// ping non-auth
+app.get('/debug/ping', (_req, res) => {
+  res.json({ ok: true, now: new Date().toISOString() });
+});
+
+// ping + auth inline
+app.get('/debug/ping-auth', bearer, (_req, res) => {
+  res.json({ ok: true, auth: true });
+});
+
+// ping DB
+app.get('/debug/db', async (_req, res, next) => {
+  try {
+    await sequelize.query('SELECT 1');
+    res.json({ db: 'ok' });
+  } catch (e) { next(e); }
+});
+
+// counts (légers)
+app.get('/debug/sites-count', async (_req, res, next) => {
+  try {
+    const n = (Models.Site && Models.Site.count) ? await Models.Site.count() : 0;
+    res.json({ count: n });
+  } catch (e) { next(e); }
+});
+
+app.get('/debug/reports-count', async (_req, res, next) => {
+  try {
+    const n = (Models.Report && Models.Report.count) ? await Models.Report.count() : 0;
+    res.json({ count: n });
+  } catch (e) { next(e); }
+});
+
+/* ============ Routes API ============ */
 app.use('/api/auth', authRoutes);
 app.use('/api/sites', siteRoutes);
 app.use('/api/reports', reportRoutes);
 
-// Healthcheck pour Railway
-app.get('/status', (_req, res) => res.sendStatus(204));
-app.get('/', (_req, res) => res.sendStatus(204));
-app.head('/', (_req, res) => res.sendStatus(204));
-
-/* ===========================
-   404 + handler global erreurs
-   =========================== */
-app.use((req, res) => res.status(404).json({ error: 'Not found' }));
-
-app.use((err, req, res, _next) => {
-  const isProd = process.env.NODE_ENV === 'production';
-  const status =
-    err.status || err.statusCode ||
-    (err.type === 'entity.parse.failed' ? 400 : 500);
-
-  if (err.type === 'entity.parse.failed' || err instanceof SyntaxError) {
-    return res.status(400).json({ error: 'Invalid JSON body' });
+// 404 (facultatif)
+app.use((req, res, _next) => {
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return res.status(404).json({ error: 'Not Found' });
   }
-  if (err && (err.code === 'LIMIT_FILE_SIZE' || err.name === 'MulterError')) {
-    const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large' : 'Upload error';
-    return res.status(413).json({ error: msg });
-  }
-  if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-  if (!isProd) {
-    console.error('🧨', err);
-    return res.status(status).json({ error: err.message || 'Internal error', stack: err.stack });
-  }
-  return res.status(status).json({ error: 'Internal error' });
+  return res.status(404).end();
 });
 
-/* ===========================
-   Listen (0.0.0.0 pour Railway)
-   =========================== */
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 API running on :${PORT}`));
+// Handler global d’erreurs
+app.use((err, req, res, _next) => {
+  // eslint-disable-next-line no-console
+  console.error('🔥', err);
+  if (!res.headersSent) res.status(500).json({ error: 'Internal Server Error' });
+});
+
+/* ============ Démarrage + init DB (non bloquant) ============ */
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  // eslint-disable-next-line no-console
+  console.log(`🚀 API running on :${PORT}`);
+});
+
+// Connexion DB en arrière-plan (sans bloquer les healthchecks)
+(async () => {
+  try {
+    await sequelize.authenticate();
+    await sequelize.sync();
+    // eslint-disable-next-line no-console
+    console.log('✅ DB connected & synced');
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('❌ DB init error:', e.message);
+  }
+})();
 
 module.exports = app;
 
