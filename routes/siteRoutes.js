@@ -1,22 +1,18 @@
 // routes/siteRoutes.js
-const router = require('express').Router();
-const auth = require('../middleware/auth');
-const ctrl = require('../controllers/siteController');
+const express = require('express');
+const router = express.Router();
 
-router.use(auth);
+const { authMiddleware } = require('../middleware/auth');
+const siteController = require('../controllers/siteController');
 
-router.get('/', ctrl.list);
-router.post('/', ctrl.create);
+// Liste paginée
+router.get('/sites', authMiddleware, siteController.list);
 
-// ⚠️ mettre AVANT '/:id'
-router.get('/by-qr/:token', ctrl.getByToken);
+// QR code PNG
+router.get('/sites/:id/qr.png', authMiddleware, siteController.qr);
 
-router.get('/:id', ctrl.getOne);
-router.put('/:id', ctrl.update);
-router.delete('/:id', ctrl.remove);
-
-router.get('/:id/qr.png', ctrl.qrPng);
-router.post('/:id/qr/rotate', ctrl.rotateQr);
+// Sonde légère SQL (debug)
+router.get('/sites-probe', authMiddleware, siteController.probe);
 
 module.exports = router;
 

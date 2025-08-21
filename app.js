@@ -1,150 +1,175 @@
 // app.js
-'use strict';
-
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
+const morgan = require('morgan');
+const fs = require('fs');
+const path = require('path');
 
-// DB & models
-const sequelize = require('./config/database');
-let Models = {};
-try {
-  Models = require('./models'); // { Site, Report, ... } si présent
-} catch (_) { /* ok si pas d’index */ }
-
-// Routes métier
-const authRoutes = require('./routes/authRoutes');
-const siteRoutes = require('./routes/siteRoutes');
-const reportRoutes = require('./routes/reportRoutes');
-
+// ---- App & base config
 const app = express();
+app.set('trust proxy', 1); // Railway/Proxies
 
-/* ============ Middleware de base ============ */
-app.disable('x-powered-by');
-app.set('trust proxy', true);
+// ---- Healthchecks 204 (sans dépendance DB)
+app.head('/', (_req, res) => res.status(204).end());
+app.head('/status', (_req, res) => res.status(204).end());
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// CORS multi-origines (liste séparée par des virgules dans CORS_ORIGIN)
-const allowed = (process.env.CORS_ORIGIN || '')
+// ---- CORS (liste depuis CORS_ORIGIN, séparée par des virgules)
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
 
-app.use(cors({
-  origin: function (origin, cb) {
-    if (!origin) return cb(null, true);                    // clients non-browsers / cURL
-    if (allowed.includes(origin)) return cb(null, true);
-    return cb(new Error('CORS not allowed from ' + origin));
+const corsOptions = {
+  origin(origin, cb) {
+    // Autorise outils CLI (curl/postman) sans Origin
+    if (!origin) return cb(null, true);
+    return cb(null, allowedOrigins.includes(origin));
   },
   credentials: true,
-  exposedHeaders: ['Content-Disposition'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400, // prévol en cache 24h
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // prévol global
+
+// ---- Parsers & logs
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan('tiny'));
+
+// ---- Uploads statiques (si nécessaire pour pièces jointes)
+const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
+try {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+} catch (e) {
+  console.warn('Warning: unable to ensure UPLOAD_DIR exists:', e?.message);
+}
+app.use('/uploads', express.static(path.resolve(UPLOAD_DIR), {
+  maxAge: '1d',
+  etag: true,
 }));
 
-// Réponse timeout (25s) pour éviter les pendings
-app.use((req, res, next) => {
-  res.setTimeout(25_000, () => {
-    if (!res.headersSent) res.status(504).json({ error: 'timeout' });
-  });
-  next();
-});
+// ---- DB & Models
+// On importe après les parsers pour éviter les cycles surprenants
+const models = require('./models'); // doit exposer { sequelize, Site, Report, ... }
+const { sequelize, Site, Report } = models;
 
-// (Option) morgan si installé
-try { app.use(require('morgan')('tiny')); } catch (_) {}
+// ---- Middleware d'auth (JWT)
+const { authMiddleware } = require('./middleware/auth');
 
-/* ============ Healthchecks ============ */
-// 204 No Content sur HEAD /
-app.head('/', (_req, res) => res.status(204).end());
-// 204 No Content sur HEAD /status
-app.head('/status', (_req, res) => res.status(204).end());
+// ---- Debug endpoints
+const routerDebug = express.Router();
 
-/* ============ DEBUG endpoints (faciles à retirer ensuite) ============ */
-function bearer(req, res, next) {
-  try {
-    const h = req.headers.authorization || '';
-    const m = h.match(/^Bearer\s+(.+)$/i);
-    if (!m) return res.status(401).json({ error: 'Missing token' });
-    req.user = jwt.verify(m[1], process.env.JWT_SECRET);
-    return next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-}
-
-// ping non-auth
-app.get('/debug/ping', (_req, res) => {
+// Ping simple
+routerDebug.get('/ping', (_req, res) => {
   res.json({ ok: true, now: new Date().toISOString() });
 });
 
-// ping + auth inline
-app.get('/debug/ping-auth', bearer, (_req, res) => {
+// Ping + auth
+routerDebug.get('/ping-auth', authMiddleware, (_req, res) => {
   res.json({ ok: true, auth: true });
 });
 
-// ping DB
-app.get('/debug/db', async (_req, res, next) => {
-  try {
-    await sequelize.query('SELECT 1');
-    res.json({ db: 'ok' });
-  } catch (e) { next(e); }
-});
-
-// counts (légers)
-app.get('/debug/sites-count', async (_req, res, next) => {
-  try {
-    const n = (Models.Site && Models.Site.count) ? await Models.Site.count() : 0;
-    res.json({ count: n });
-  } catch (e) { next(e); }
-});
-
-app.get('/debug/reports-count', async (_req, res, next) => {
-  try {
-    const n = (Models.Report && Models.Report.count) ? await Models.Report.count() : 0;
-    res.json({ count: n });
-  } catch (e) { next(e); }
-});
-
-/* ============ Routes API ============ */
-app.use('/api/auth', authRoutes);
-app.use('/api/sites', siteRoutes);
-app.use('/api/reports', reportRoutes);
-
-// 404 (facultatif)
-app.use((req, res, _next) => {
-  if (req.method === 'GET' || req.method === 'HEAD') {
-    return res.status(404).json({ error: 'Not Found' });
-  }
-  return res.status(404).end();
-});
-
-// Handler global d’erreurs
-app.use((err, req, res, _next) => {
-  // eslint-disable-next-line no-console
-  console.error('🔥', err);
-  if (!res.headersSent) res.status(500).json({ error: 'Internal Server Error' });
-});
-
-/* ============ Démarrage + init DB (non bloquant) ============ */
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`🚀 API running on :${PORT}`);
-});
-
-// Connexion DB en arrière-plan (sans bloquer les healthchecks)
-(async () => {
+// Ping DB (SELECT 1)
+routerDebug.get('/db', async (_req, res) => {
   try {
     await sequelize.authenticate();
-    await sequelize.sync();
-    // eslint-disable-next-line no-console
-    console.log('✅ DB connected & synced');
+    const [rows] = await sequelize.query('SELECT 1 AS x');
+    res.json({ db: 'ok', x: rows?.[0]?.x ?? 1 });
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error('❌ DB init error:', e.message);
+    console.error('debug/db error:', e);
+    res.status(500).json({ db: 'error', message: e?.message || 'db error' });
   }
-})();
+});
+
+// Compteurs Sites/Rapports
+routerDebug.get('/sites-count', async (_req, res) => {
+  try {
+    const count = await Site.count();
+    res.json({ count });
+  } catch (e) {
+    console.error('debug/sites-count error:', e);
+    res.status(500).json({ error: 'count failed' });
+  }
+});
+
+routerDebug.get('/reports-count', async (_req, res) => {
+  try {
+    const count = await Report.count();
+    res.json({ count });
+  } catch (e) {
+    console.error('debug/reports-count error:', e);
+    res.status(500).json({ error: 'count failed' });
+  }
+});
+
+// Liste toutes les routes (utile pour vérifier le montage)
+routerDebug.get('/routes', (req, res) => {
+  const out = [];
+  const stack = req.app?._router?.stack || [];
+  stack.forEach((layer) => {
+    if (layer.route) {
+      const path = layer.route.path;
+      const methods = Object.keys(layer.route.methods || {}).join(',');
+      out.push({ path, methods });
+    } else if (layer.name === 'router' && layer.handle?.stack) {
+      // reconstitue un préfixe approximatif
+      const base = layer.regexp?.source
+        ?.replace('^\\', '/')
+        ?.replace('\\/?(?=\\/|$)', '')
+        ?.replace('^', '')
+        ?.replace('$', '') || '';
+      layer.handle.stack.forEach((s) => {
+        if (s.route) {
+          const p = s.route.path;
+          const m = Object.keys(s.route.methods || {}).join(',');
+          out.push({ path: (base || '') + p, methods: m });
+        }
+      });
+    }
+  });
+  res.json(out);
+});
+
+app.use('/debug', routerDebug);
+
+// ---- Routes métier (déjà présentes dans le projet)
+const authRoutes   = require('./routes/authRoutes');    // POST /api/auth/login
+const siteRoutes   = require('./routes/siteRoutes');    // GET /api/sites, GET /api/sites/:id/qr.png
+const reportRoutes = require('./routes/reportRoutes');  // GET /api/reports, DELETE /api/reports/:reportId/attachments/:fileName
+
+app.use('/api', authRoutes);
+app.use('/api', siteRoutes);
+app.use('/api', reportRoutes);
+
+// ---- 404
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found' });
+});
+
+// ---- Error handler (évite 502 edge en cas d’exception non gérée)
+app.use((err, _req, res, _next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ status: 'error', message: 'internal server error' });
+});
+
+// ---- Lancement serveur
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, async () => {
+  console.log(`🚀 API running on :${PORT}`);
+
+  // Log DB à l’arrivée pour confirmer la connexion
+  try {
+    await sequelize.authenticate();
+    console.log('✅ DB connected & authenticated');
+  } catch (e) {
+    console.error('❌ DB connection error:', e?.message);
+  }
+});
 
 module.exports = app;
 
