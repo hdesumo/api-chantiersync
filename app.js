@@ -1,6 +1,6 @@
 // app.js
 require('dotenv').config();
-
+console.log('ENV check → DATABASE_URL present:', !!process.env.DATABASE_URL);
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
