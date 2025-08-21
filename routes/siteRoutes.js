@@ -5,13 +5,13 @@ const router = express.Router();
 const { authMiddleware } = require('../middleware/auth');
 const siteController = require('../controllers/siteController');
 
-// Liste paginée
+// Liste paginée des sites
 router.get('/sites', authMiddleware, siteController.list);
 
-// QR code PNG
+// QR code PNG d’un site
 router.get('/sites/:id/qr.png', authMiddleware, siteController.qr);
 
-// Sonde légère SQL (debug)
+// Sonde SQL (debug)
 router.get('/sites-probe', authMiddleware, siteController.probe);
 
 module.exports = router;
