@@ -11,7 +11,7 @@ function getModel() {
   return (typeof Site?.unscoped === 'function') ? Site.unscoped() : Site;
 }
 
-/** GET /api/sites — liste paginée, légère et sûre */
+/** GET /api/sites — liste paginée, légère et sûre (sans timestamps) */
 async function list(req, res) {
   try {
     const limit  = Math.min(parseInt(req.query.limit  || '50', 10), 100);
@@ -27,14 +27,14 @@ async function list(req, res) {
       where,
       limit,
       offset,
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'name', 'code', 'enterprise_id', 'createdAt', 'updatedAt'],
+      // On évite createdAt/updatedAt pour compat toutes conventions
+      attributes: ['id', 'name', 'code', 'enterprise_id'],
+      order: [['id', 'DESC']],
       subQuery: false,
-      raw: true, // évite les getters coûteux et la sérialisation lente
+      raw: true,
     });
 
     const count = await Model.count({ where });
-
     return res.status(200).json({ count, rows, limit, offset });
   } catch (err) {
     console.error('sites.list error:', err);
@@ -49,7 +49,6 @@ async function qr(req, res) {
     const size = Math.min(parseInt(req.query.size || '256', 10), 1024);
     if (!id) return res.status(400).send('Missing id');
 
-    // PNG 1x1 transparent (base64) — à remplacer par qrcode.toBuffer(...) plus tard
     const png1x1 = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2P4//8/AwAI/AL+Vn3W9wAAAABJRU5ErkJggg==',
       'base64'
@@ -63,16 +62,20 @@ async function qr(req, res) {
   }
 }
 
-/** GET /api/sites-probe — sonde SQL ultra-légère (bypass ORM) */
+/** GET /api/sites-probe — sonde SQL ultra-légère (sans timestamps) */
 async function probe(_req, res) {
   try {
-    const tn = typeof Site.getTableName === 'function' ? Site.getTableName() : (Site.tableName || 'Sites');
+    const tn = typeof Site.getTableName === 'function'
+      ? Site.getTableName()
+      : (Site.tableName || 'sites');
+
     const tableName = typeof tn === 'object' ? tn.tableName : tn;
 
+    // On se limite à des colonnes "sûres"
     const [rows] = await sequelize.query(
-      `SELECT id, name, code, "createdAt"
+      `SELECT id, name, code
        FROM "${tableName}"
-       ORDER BY "createdAt" DESC
+       ORDER BY id DESC
        LIMIT 5`
     );
     return res.json({ rows });
