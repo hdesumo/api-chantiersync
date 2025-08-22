@@ -1,0 +1,13 @@
+{
+  "meta": {
+    "exp": "7d",
+    "enterprise_id": "ENT_DEMO",
+    "generatedAt": "2025-08-22T14:18:12.614Z"
+  },
+  "tokens": {
+    "platformAdmin": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1X3BsYXRmb3JtIiwicm9sZSI6IlBMQVRGT1JNX0FETUlOIiwiaWF0IjoxNzU1ODcyMjkyLCJleHAiOjE3NTY0NzcwOTJ9.WID4csLdl_PKR_jGQpXnxXT8ytamrjxC-NlQ2osikAA",
+    "tenantAdmin": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1X3RlbmFudF9hZG1pbiIsInJvbGUiOiJURU5BTlRfQURNSU4iLCJlbnRlcnByaXNlX2lkIjoiRU5UX0RFTU8iLCJpYXQiOjE3NTU4NzIyOTIsImV4cCI6MTc1NjQ3NzA5Mn0.meEi7pET7kKRiceb620ID3gwd1UnuLEOXlflsBHNxIE",
+    "manager": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1X21hbmFnZXIiLCJyb2xlIjoiTUFOQUdFUiIsImVudGVycHJpc2VfaWQiOiJFTlRfREVNTyIsImlhdCI6MTc1NTg3MjI5MiwiZXhwIjoxNzU2NDc3MDkyfQ.H-EvEgy32Wh_0ztNzz6JVyQuuDco6yuvf9rXjGibwBs",
+    "staff": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1X3N0YWZmIiwicm9sZSI6IlNUQUZGIiwiZW50ZXJwcmlzZV9pZCI6IkVOVF9ERU1PIiwiaWF0IjoxNzU1ODcyMjkyLCJleHAiOjE3NTY0NzcwOTJ9.Mo_CTed6znX5QaeuNF9lXBWyuVttscvsu4KWdAiST5Y"
+  }
+}

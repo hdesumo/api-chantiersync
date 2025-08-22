@@ -1,33 +1,51 @@
-// middleware/auth.js
+// middleware/auth.js — JWT verifier
+// ==================================
+// Usage: app montera automatiquement ce middleware si present
+// Exige que process.env.JWT_SECRET soit défini
+
+
 const jwt = require('jsonwebtoken');
 
-/**
- * Authentifie via header Authorization: Bearer <token>
- * Ajoute le payload dans req.user, sinon 401.
- */
-function authMiddleware(req, res, next) {
-  try {
-    const auth = req.headers.authorization || '';
-    const match = auth.match(/^Bearer\s+(.+)$/i);
-    if (!match) return res.status(401).json({ error: 'Missing bearer token' });
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      return res.status(500).json({ error: 'JWT_SECRET not configured' });
-    }
+const ROLES = {
+PLATFORM_ADMIN: 'PLATFORM_ADMIN',
+TENANT_ADMIN: 'TENANT_ADMIN',
+MANAGER: 'MANAGER',
+STAFF: 'STAFF',
+};
 
-    const token = match[1];
-    const payload = jwt.verify(token, secret);
 
-    // payload attendu: { uid, role, enterprise_id, iat, exp, ... }
-    req.user = payload;
-    return next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
+function extractToken(req) {
+// Priorité à Authorization: Bearer <token>
+const header = req.headers['authorization'] || '';
+if (header.startsWith('Bearer ')) return header.slice(7);
+// Optionnel: cookie "token"
+if (req.cookies && req.cookies.token) return req.cookies.token;
+// Optionnel: X-Access-Token
+if (req.headers['x-access-token']) return String(req.headers['x-access-token']);
+return null;
 }
 
-module.exports = { authMiddleware };
-// Optionnel : support import par défaut si jamais
-module.exports.default = authMiddleware;
 
+function authMiddleware(req, res, next) {
+const token = extractToken(req);
+if (!token) return res.status(401).json({ error: 'Missing token' });
+try {
+const payload = jwt.verify(token, process.env.JWT_SECRET);
+// Attendus dans le payload: sub, role, enterprise_id
+if (!payload || !payload.sub || !payload.role) {
+return res.status(401).json({ error: 'Invalid token payload' });
+}
+req.user = {
+id: payload.sub,
+role: payload.role,
+enterprise_id: payload.enterprise_id || null,
+};
+return next();
+} catch (e) {
+return res.status(401).json({ error: 'Invalid token' });
+}
+}
+
+
+module.exports = { authMiddleware, ROLES };
