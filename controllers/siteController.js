@@ -2,40 +2,51 @@
 'use strict';
 
 const { Site, sequelize } = require('../models');
-const { Op } = require('sequelize'); // au cas où, même si non essentiel
 
-/** ===== Helpers génériques ===== **/
+// ---- (optionnel) QR code : on essaye 'qrcode', sinon stub 1x1
+let QRCode = null;
+try {
+  QRCode = require('qrcode'); // npm i qrcode
+} catch (_) {
+  QRCode = null;
+}
 
-/** Retourne un modèle "léger" si disponible (désactive defaultScope potentiellement lourd) */
+/* ===================== Helpers génériques ===================== */
+
 function getModel() {
+  // Renvoie un modèle "léger" si possible (désactive un defaultScope coûteux)
   if (!Site) return null;
   return (typeof Site.unscoped === 'function') ? Site.unscoped() : Site;
 }
 
-/** Récupère une valeur d'entreprise depuis le JWT (si présente) */
 function getEnterpriseValue(user) {
   return user?.enterprise_id ?? user?.enterpriseId ?? null;
 }
 
-/** Cherche la table "sites/site/…", en priorisant le schéma public et les noms les plus probables */
+function parsePagination(qs) {
+  const limit  = Math.min(Math.max(parseInt(qs?.limit  ?? '50', 10) || 50, 1), 100);
+  const offset = Math.max(parseInt(qs?.offset ?? '0', 10) || 0, 0);
+  return { limit, offset };
+}
+
+/* ===================== Auto-découverte SQL (fallback) ===================== */
+
 async function findSiteTable() {
-  // Liste toutes les tables utilisateur
   const tables = await sequelize.query(
     `SELECT table_schema, table_name
-     FROM information_schema.tables
-     WHERE table_type='BASE TABLE'
-       AND table_schema NOT IN ('pg_catalog','information_schema')`,
+       FROM information_schema.tables
+      WHERE table_type='BASE TABLE'
+        AND table_schema NOT IN ('pg_catalog','information_schema')`,
     { type: sequelize.QueryTypes.SELECT }
   );
 
-  // candidates = tables contenant "site" dans le nom
   const candidates = tables
     .filter(t => /site/i.test(t.table_name))
     .map(t => ({ schema: t.table_schema, name: t.table_name }));
 
   if (candidates.length === 0) return null;
 
-  // Priorisation simple : public.sites > public.site > *sites* > *site*
+  // Priorité : public.sites > public.site > *sites* > *site*
   candidates.sort((a, b) => {
     const score = (x) => {
       let s = 0;
@@ -44,16 +55,14 @@ async function findSiteTable() {
       if (/^site$/i.test(x.name)) s += 4;
       if (/sites/i.test(x.name)) s += 2;
       if (/site/i.test(x.name)) s += 1;
-      return -s; // tri asc, on retourne -score pour avoir le plus grand d'abord
+      return -s;
     };
     return score(a) - score(b);
   });
 
-  // Meilleur candidat
   return candidates[0];
 }
 
-/** Retourne la liste des colonnes d'une table (ordre naturel) */
 async function getColumns(schema, table) {
   const rows = await sequelize.query(
     `SELECT column_name
@@ -68,7 +77,6 @@ async function getColumns(schema, table) {
   return rows.map(r => r.column_name);
 }
 
-/** Choisit la colonne d'ORDER BY (id si dispo, sinon 1ère colonne) */
 function chooseOrderColumn(columns) {
   if (!columns || columns.length === 0) return null;
   const lower = columns.map(c => c.toLowerCase());
@@ -77,31 +85,20 @@ function chooseOrderColumn(columns) {
   return columns[0];
 }
 
-/** Détecte la colonne d'entreprise (enterprise_id / enterpriseId / etc.) si existante */
 function detectEnterpriseColumn(columns) {
   if (!columns || columns.length === 0) return null;
   const lower = columns.map(c => c.toLowerCase());
-  const candidates = ['enterprise_id', 'enterpriseid', 'enterprise'];
-  for (const c of candidates) {
-    const i = lower.indexOf(c);
+  const exacts = ['enterprise_id', 'enterpriseid'];
+  for (const e of exacts) {
+    const i = lower.indexOf(e);
     if (i >= 0) return columns[i];
   }
-  // heuristique: contient 'enterprise' et 'id'
   for (let i = 0; i < columns.length; i++) {
     const l = columns[i].toLowerCase();
     if (l.includes('enterprise') && l.includes('id')) return columns[i];
   }
   return null;
 }
-
-/** Pagination défensive */
-function parsePagination(qs) {
-  const limit  = Math.min(Math.max(parseInt(qs?.limit  ?? '50', 10) || 50, 1), 100);
-  const offset = Math.max(parseInt(qs?.offset ?? '0', 10) || 0, 0);
-  return { limit, offset };
-}
-
-/** ===== Fallback SQL brut (ne dépend pas du modèle Sequelize) ===== **/
 
 async function listViaRaw(user, limit, offset) {
   const table = await findSiteTable();
@@ -143,29 +140,32 @@ async function listViaRaw(user, limit, offset) {
   return { count, rows };
 }
 
-/** ===== Handlers ===== **/
+/* ===================== Handlers ===================== */
 
-/** GET /api/sites — tente le modèle, sinon bascule en SQL brut auto-découverte */
+// GET /api/sites
 async function list(req, res) {
   try {
     const { limit, offset } = parsePagination(req.query);
     const entVal = getEnterpriseValue(req.user);
 
-    // 1) Tentative via modèle Sequelize (si présent ET correctement mappé)
+    // 1) Tentative via modèle Sequelize (si correctement mappé)
     const Model = getModel();
     if (Model) {
       try {
         const where = {};
-        // ajoute filtre entreprise seulement si la colonne existe dans le modèle
         const attrs = Model.rawAttributes ? Object.keys(Model.rawAttributes) : [];
         const entColInModel = entVal
-          ? attrs.find(a => a.toLowerCase() === 'enterprise_id' || a.toLowerCase() === 'enterpriseid' || (a.toLowerCase().includes('enterprise') && a.toLowerCase().includes('id')))
+          ? attrs.find(a => {
+              const l = a.toLowerCase();
+              return l === 'enterprise_id' || l === 'enterpriseid' || (l.includes('enterprise') && l.includes('id'));
+            })
           : null;
+
         if (entVal && entColInModel) where[entColInModel] = entVal;
 
-        // Choix de la colonne d'ordre côté modèle
-        const orderCol = (Array.isArray(Model.primaryKeyAttributes) && Model.primaryKeyAttributes[0])
-          || (attrs.includes('id') ? 'id' : null);
+        const orderCol =
+          (Array.isArray(Model.primaryKeyAttributes) && Model.primaryKeyAttributes[0]) ||
+          (attrs.includes('id') ? 'id' : null);
 
         const rows = await Model.findAll({
           where,
@@ -178,12 +178,11 @@ async function list(req, res) {
         const count = await Model.count({ where });
         return res.status(200).json({ count, rows, limit, offset });
       } catch (modelErr) {
-        // On log puis on bascule en fallback SQL brut
-        console.warn('sites.list model path failed, falling back to raw:', modelErr?.message || modelErr);
+        console.warn('sites.list: model path failed, fallback to raw →', modelErr?.message || modelErr);
       }
     }
 
-    // 2) Fallback SQL brut (auto-discovery)
+    // 2) Fallback SQL brut (auto-découverte)
     const out = await listViaRaw(req.user, limit, offset);
     return res.status(200).json({ ...out, limit, offset });
   } catch (err) {
@@ -192,7 +191,7 @@ async function list(req, res) {
   }
 }
 
-/** GET /api/sites-probe — sonde ultra-légère (fallback SQL brut direct) */
+// GET /api/sites-probe
 async function probe(_req, res) {
   try {
     const table = await findSiteTable();
@@ -219,14 +218,29 @@ async function probe(_req, res) {
   }
 }
 
-/** GET /api/sites/:id/qr.png?size=256 — stub PNG 1x1 (à remplacer par ta génération QR) */
+// GET /api/sites/:id/qr.png?size=256
 async function qr(req, res) {
   try {
     const { id } = req.params;
     const size = Math.min(parseInt(req.query.size || '256', 10) || 256, 1024);
     if (!id) return res.status(400).send('Missing id');
 
-    // PNG 1x1 transparent (stub)
+    // URL encodée dans le QR (ouvre la fiche admin)
+    const base = process.env.QR_URL_BASE || 'https://admin.chantiersync.com';
+    const url  = `${base}/sites/${id}?src=qr`;
+
+    if (QRCode && typeof QRCode.toBuffer === 'function') {
+      const png = await QRCode.toBuffer(url, {
+        width: size,
+        errorCorrectionLevel: 'M',
+        margin: 1,
+      });
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=300, immutable');
+      return res.status(200).send(png);
+    }
+
+    // Fallback : PNG 1x1 transparent si la lib n'est pas installée
     const png1x1 = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2P4//8/AwAI/AL+Vn3W9wAAAABJRU5ErkJggg==',
       'base64'
