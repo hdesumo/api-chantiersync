@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chantiersync API</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    :root { --bg:#0b1220; --card:#121a2b; --muted:#8aa0c6; --text:#eaf1ff; --accent:#4da3ff; }
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(1200px 600px at 70% -20%, #15213a, var(--bg));
+    color:var(--text);font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial}
+    .wrap{min-height:100dvh;display:grid;place-items:center;padding:32px}
+    .card{width:100%;max-width:720px;background:linear-gradient(180deg, rgba(255,255,255,0.03), transparent), var(--card);
+      border:1px solid rgba(255,255,255,0.08); border-radius:18px; padding:28px 24px; box-shadow:0 10px 40px rgba(0,0,0,.25)}
+    h1{margin:0 0 8px;font-size:28px} p{margin:8px 0;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px}
+    a.btn{display:block;padding:12px 14px;border-radius:12px;text-decoration:none;background:#0f172a;border:1px solid rgba(255,255,255,0.08);
+      color:var(--text);transition:transform .06s ease, border-color .2s}
+    a.btn:hover{transform:translateY(-1px);border-color:var(--accent)}
+    code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:6px}
+    footer{margin-top:18px;font-size:12px;color:#9fb2d6}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Chantiersync API</h1>
+      <p>Backend opérationnel. Utilisez les liens rapides ci-dessous pour vérifier l’état et tester l’auth.</p>
+
+      <div class="grid">
+        <a class="btn" href="/status">/status</a>
+        <a class="btn" href="/debug/ping">/debug/ping</a>
+        <a class="btn" href="/debug/whoami">/debug/whoami <small>(JWT requis)</small></a>
+        <a class="btn" href="/aff/pixel.gif?aff=DEMO1234&campaign=launch&source=demo">/aff/pixel.gif (lead)</a>
+        <a class="btn" href="/aff/r/DEMO1234?campaign=launch&source=demo">/aff/r/DEMO1234 (redirect)</a>
+        <a class="btn" href="/uploads/">/uploads/</a>
+      </div>
+
+      <p style="margin-top:16px">Astuce : appelez <code>/debug/whoami</code> avec un header
+        <code>Authorization: Bearer &lt;TOKEN&gt;</code> pour voir l’utilisateur résolu.</p>
+
+      <footer>
+        © <span id="y"></span> Chantiersync — API
+      </footer>
+    </div>
+  </div>
+  <script>document.getElementById('y').textContent=new Date().getFullYear()</script>
+</body>
+</html>
+

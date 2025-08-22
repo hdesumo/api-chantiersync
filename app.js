@@ -147,6 +147,15 @@ safeMount('/api', './routes/affiliateAdminRoutes');
 // Programme d’affiliation public (liens/pixel)
 safeMount('/', './routes/affiliateRoutes');
 
+// -------- Accueil public (facultatif) --------
+const publicDir = path.join(__dirname, 'public');
+app.use(express.static(publicDir, { extensions: ['html'] }));
+
+// Si quelqu’un visite la racine, renvoie /index.html
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
+});
+
 // ------------------------------
 // 404 & Error handler
 // ------------------------------
