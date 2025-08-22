@@ -5,39 +5,49 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const morgan = require('morgan');
 const fs = require('fs');
 const path = require('path');
+
+// Déps sécurité
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+
+// Logger (optionnel : ne casse pas le boot si non installé)
+let morgan = null;
+try { morgan = require('morgan'); } catch (_) { morgan = null; }
 
 const app = express();
 app.set('trust proxy', 1); // derrière Railway/Proxies
 
-// ---------- Healthchecks (sans DB) ----------
+/* ------------------------- Healthchecks ------------------------- */
+// Répond sur HEAD + GET (certains proxies font un GET au root)
 app.head('/', (_req, res) => res.status(204).end());
 app.head('/status', (_req, res) => res.status(204).end());
+app.get('/', (_req, res) => res.status(204).end());
+app.get('/status', (_req, res) => res.status(204).end());
 
-// ---------- Sécurité (Helmet + Rate limit) ----------
+/* --------------------------- Sécurité --------------------------- */
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // API only, autorise CORS pour /uploads
+  // L’API ne sert pas de pages HTML; autorise le cross-origin sur /uploads si besoin
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
+// Rate limit global — n’impacte pas health/CORS preflight
 const limiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  limit: 300,           // 300 req/min/IP (ajuste au besoin)
+  limit: 300,           // ajuste selon trafic
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => (
-    req.method === 'OPTIONS' || // ne pas limiter les preflight CORS
-    req.method === 'HEAD' ||    // ne pas limiter les health
-    req.path === '/' ||
-    req.path === '/status'
+    req.method === 'OPTIONS' ||           // prévol CORS
+    req.method === 'HEAD' ||              // health
+    req.path === '/' ||                   // GET /
+    req.path === '/status'                // GET /status
   ),
 });
 app.use(limiter);
 
-// ---------- CORS ----------
+/* ----------------------------- CORS ----------------------------- */
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map(s => s.trim())
@@ -47,50 +57,53 @@ const corsOptions = {
   origin(origin, cb) {
     // Autorise curl/Postman sans Origin
     if (!origin) return cb(null, true);
-    return cb(null, allowedOrigins.includes(origin));
+    cb(null, allowedOrigins.includes(origin));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400,
 };
-
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // prévol global
 
-// ---------- Parsers & logs ----------
+/* ----------------------- Parsers & Logging ---------------------- */
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('tiny'));
-
-// ---------- Uploads statiques ----------
-const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
-try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch (e) {
-  console.warn('Warning: unable to ensure UPLOAD_DIR exists:', e?.message);
+if (morgan) {
+  app.use(morgan('tiny'));
+} else {
+  // Fallback logger minimal
+  app.use((req, _res, next) => { console.log(`${req.method} ${req.url}`); next(); });
 }
+
+/* ------------------------ Static /uploads ----------------------- */
+const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
+try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); }
+catch (e) { console.warn('Warning: unable to ensure UPLOAD_DIR exists:', e?.message); }
+
 app.use('/uploads', express.static(path.resolve(UPLOAD_DIR), {
   maxAge: '1d',
   etag: true,
 }));
 
-// ---------- DB & Models ----------
+/* ------------------------- Models & DB -------------------------- */
 const models = require('./models'); // doit exposer { sequelize, Site, Report, ... }
 const { sequelize, Site, Report } = models;
 
-// ---------- Auth middleware (résolution robuste) ----------
+/* ---------------------- Auth middleware ------------------------ */
 let authMw = null;
 try {
   const mod = require('./middleware/auth');
   authMw = (typeof mod === 'function') ? mod : mod?.authMiddleware;
-} catch (_) {
-  authMw = null;
-}
+} catch (_) { /* laissé nul → handler ci-dessous renverra 500 si manquant */ }
+
 const requireAuth = (req, res, next) => {
   if (typeof authMw === 'function') return authMw(req, res, next);
   return res.status(500).json({ error: 'Auth middleware not loaded' });
 };
 
-// ---------- Debug ----------
+/* --------------------------- Debug ------------------------------ */
 const routerDebug = express.Router();
 
 routerDebug.get('/ping', (_req, res) => {
@@ -132,7 +145,7 @@ routerDebug.get('/reports-count', async (_req, res) => {
   }
 });
 
-// Liste des routes montées (diagnostic)
+// Inventaire des routes (diagnostic)
 routerDebug.get('/routes', (req, res) => {
   const out = [];
   const stack = req.app?._router?.stack || [];
@@ -161,25 +174,24 @@ routerDebug.get('/routes', (req, res) => {
 
 app.use('/debug', routerDebug);
 
-// ---------- Routes métier ----------
+/* --------------------------- Routes API ------------------------- */
 const authRoutes   = require('./routes/authRoutes');    // POST /api/auth/login
-const siteRoutes   = require('./routes/siteRoutes');    // GET/POST/PATCH /api/sites, GET /api/sites/:id/qr.png, /api/sites-probe
-const reportRoutes = require('./routes/reportRoutes');  // GET /api/reports, DELETE attachments, etc.
+const siteRoutes   = require('./routes/siteRoutes');    // /api/sites, /api/sites/:id/qr.png, /api/sites-probe
+const reportRoutes = require('./routes/reportRoutes');  // /api/reports, DELETE attachments, etc.
 
 app.use('/api', authRoutes);
 app.use('/api', siteRoutes);
 app.use('/api', reportRoutes);
 
-// ---------- 404 ----------
+/* ------------------------- 404 & Errors ------------------------- */
 app.use((req, res) => res.status(404).json({ error: 'Not Found' }));
 
-// ---------- Error handler ----------
 app.use((err, _req, res, _next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ status: 'error', message: 'internal server error' });
 });
 
-// ---------- Start ----------
+/* --------------------------- Start ------------------------------ */
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, async () => {
   console.log(`🚀 API running on :${PORT}`);
