@@ -1,12 +1,10 @@
 // app.js — Chantiersync API (version conforme consolidée)
 res.json({ ok: true, now: new Date().toISOString() });
-});
 routerDebug.get('/ping-auth', authWithCompat, (req, res) => {
 res.json({ ok: true, auth: true, user: req.user || null });
 });
 routerDebug.get('/whoami', authWithCompat, (req, res) => {
 res.json({ user: req.user || null });
-});
 app.use('/debug', routerDebug);
 
 
