@@ -1,179 +1,114 @@
-// app.js — Chantiersync API (version conforme consolidée)
-// - CORS multi-origines
-// - Sécurité (helmet), logs (morgan), cookies, JSON parser
-// - Health/debug: /status, /debug/ping, /debug/ping-auth, /debug/whoami
-// - DB init (Sequelize authenticate si présent)
-// - RBAC-ready: montage des routes métier + affiliation + admin affiliation
-// - Compat rôle: mapping ADMIN -> PLATFORM_ADMIN via roleMap (optionnel)
-// - Erreurs centralisées, 404, écoute 0.0.0.0
-// ====================================================================
-
+// app.js
 require('dotenv').config();
 
-const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
 
 const app = express();
+const PORT = process.env.PORT || 8080;
 
-// ------------------------------
-// CORS
-// ------------------------------
-const originsEnv = process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '';
-const allowedOrigins = originsEnv
+/* ----------------------------- Core middlewares ---------------------------- */
+const origins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
 
 const corsOptions = {
-  origin(origin, callback) {
-    if (!origin) return callback(null, true); // allow curl / server-to-server
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS blocked: ${origin}`));
+  origin: (origin, cb) => {
+    // autorise les outils (curl, health) sans origin
+    if (!origin) return cb(null, true);
+    if (!origins.length || origins.includes(origin)) return cb(null, true);
+    return cb(null, false);
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 };
+
+app.use(helmet());
+app.use(morgan('dev'));
+app.use(express.json({ limit: '5mb' }));
+app.use(cookieParser());
 app.use(cors(corsOptions));
 
-// ------------------------------
-// Sécurité / parsers / logs
-// ------------------------------
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+/* ------------------------------- Rate limiting ----------------------------- */
+// On protège les routes API, mais on laisse / et /status libres
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path === '/status') return next();
+  return apiLimiter(req, res, next);
+});
 
-// ------------------------------
-// Static (uploads optionnel)
-// ------------------------------
-try {
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-} catch (_) {}
+/* --------------------------------- Health --------------------------------- */
+app.get('/', (req, res) => {
+  res.json({ ok: true, now: new Date().toISOString() });
+});
 
-// ------------------------------
-// DB (Sequelize) — non bloquant
-// ------------------------------
-try {
-  const db = require('./models');
-  if (db && db.sequelize && db.sequelize.authenticate) {
-    db.sequelize.authenticate()
-      .then(() => console.log('✅ DB connected'))
-      .catch(err => console.error('❌ DB auth error:', err && err.message));
-  }
-} catch (e) {
-  console.warn('⚠️ DB init skipped (./models not found or failed):', e.message);
-}
-
-// ------------------------------
-// Auth & compat rôle (optionnel)
-// ------------------------------
-let authMiddleware;
-try {
-  ({ authMiddleware } = require('./middleware/auth'));
-} catch (_) {
-  // Fallback minimal pour dev: nécessite un Bearer et simule un STAFF
-  authMiddleware = (req, res, next) => {
-    const header = req.headers['authorization'] || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-    if (!token) return res.status(401).json({ error: 'Missing Bearer token' });
-    req.user = { id: 'demo', role: 'STAFF', enterprise_id: 'demo_ent' };
-    next();
-  };
-}
-
-let roleCompat; // mappe ADMIN -> PLATFORM_ADMIN si présent
-try {
-  roleCompat = require('./middleware/roleMap');
-} catch (_) {
-  roleCompat = null;
-}
-
-// Helper: auth + compat rôle pour routes debug/tests
-const authWithCompat = (req, res, next) =>
-  authMiddleware(req, res, () => (roleCompat ? roleCompat(req, res, next) : next()));
-
-// ------------------------------
-// Health & debug
-// ------------------------------
-app.get('/status', (_req, res) => {
+app.get('/status', (req, res) => {
   res.json({ status: 'API Chantiersync OK', timestamp: new Date().toISOString() });
 });
 
-const routerDebug = express.Router();
-routerDebug.get('/ping', (_req, res) => {
-  res.json({ ok: true, now: new Date().toISOString() });
-});
-routerDebug.get('/ping-auth', authWithCompat, (req, res) => {
-  res.json({ ok: true, auth: true, user: req.user || null });
-});
-routerDebug.get('/whoami', authWithCompat, (req, res) => {
-  res.json({ user: req.user || null });
-});
-app.use('/debug', routerDebug);
-
-// ------------------------------
-// Safe mount helper
-// ------------------------------
-function safeMount(pathname, modulePath) {
+/* --------------------------------- Mounts --------------------------------- */
+function safeMount(base, relPath) {
   try {
-    const router = require(modulePath);
-    app.use(pathname, router);
-    console.log(`➡️  Mounted ${modulePath} at ${pathname}`);
+    const r = require(relPath);
+    app.use(base, r);
+    console.log(`➡️  Mounted ${relPath} at ${base}`);
   } catch (e) {
-    console.warn(`⚠️  Skipped ${modulePath} (${e.message})`);
+    console.warn(`⚠️  Skipped ${relPath} (${e.message})`);
   }
 }
 
-// ------------------------------
-// API Routes (métier & affiliation)
-// ------------------------------
-// Existant
+// Toutes les routes “métier” sous /api
 safeMount('/api', './routes/authRoutes');
 safeMount('/api', './routes/siteRoutes');
 safeMount('/api', './routes/reportRoutes');
-// RBAC-ready (si fichiers présents)
-safeMount('/api/tenants', './routes/tenantRoutes');
-safeMount('/api/users', './routes/userRoutes');
-safeMount('/api/media', './routes/mediaRoutes');
-safeMount('/api/billing', './routes/billingRoutes');
-// Admin affiliation (PLATFORM_ADMIN)
+safeMount('/api', './routes/tenantRoutes');
+safeMount('/api', './routes/userRoutes');
+safeMount('/api', './routes/mediaRoutes');
+safeMount('/api', './routes/billingRoutes');
 safeMount('/api', './routes/affiliateAdminRoutes');
-// Programme d’affiliation public (liens/pixel)
+
+// Les routes publiques d’affiliation à la racine si présentes
 safeMount('/', './routes/affiliateRoutes');
 
-// -------- Accueil public (facultatif) --------
-const publicDir = path.join(__dirname, 'public');
-app.use(express.static(publicDir, { extensions: ['html'] }));
-
-// Si quelqu’un visite la racine, renvoie /index.html
-app.get('/', (_req, res) => {
-  res.sendFile(path.join(publicDir, 'index.html'));
-});
-
-// ------------------------------
-// 404 & Error handler
-// ------------------------------
+/* -------------------------------- 404/Errors ------------------------------- */
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.path });
 });
 
-// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error('💥 Error:', err);
-  const status = err.status || err.statusCode || 500;
-  res.status(status).json({ error: err.message || 'Internal Server Error' });
+  console.error('Unhandled error:', err);
+  res
+    .status(err.status || 500)
+    .json({ error: err.message || 'Internal Server Error' });
 });
 
-// ------------------------------
-// Start (écoute sur 0.0.0.0 pour compat PaaS)
-// ------------------------------
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 API running on :${PORT}`);
-});
+/* ------------------------------- DB + start -------------------------------- */
+(async () => {
+  try {
+    const models = require('./models'); // Sequelize index.js
+    if (models?.sequelize?.authenticate) {
+      await models.sequelize.authenticate();
+      console.log('✅ DB connected');
+    } else {
+      console.log('⚠️  Sequelize not detected, skipping DB check');
+    }
+  } catch (e) {
+    console.warn('⚠️  DB connection failed:', e.message);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`🚀 API running on :${PORT}`);
+  });
+})();
+
+module.exports = app;
+
