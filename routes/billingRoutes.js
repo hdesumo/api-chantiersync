@@ -1,30 +1,13 @@
-// File: routes/billingRoutes.js
-// ---------------------------------------------------------------------
-const express6 = require('express');
-const { authMiddleware: auth6, ROLES: ROLES6 } = require('../middleware/auth');
-const { requireRole: reqRole6, requireSameEnterprise: reqSameEnt6 } = require('../middleware/rbac');
-const routerBilling = express6.Router();
+// routes/billingRoutes.js
+const express = require('express');
+const auth = require('../middleware/auth');
+const ROLES = require('../middleware/roles');
+const router = express.Router();
 
-
-// Manage (PLATFORM_ADMIN)
-routerBilling.post('/plan', auth6, reqRole6(ROLES6.PLATFORM_ADMIN), async (req, res, next) => {
-try {
-// ... create/update plan/license for a tenant
-res.json({ ok: true });
-} catch (e) { next(e); }
+router.get('/billing/licenses', auth([ROLES.PLATFORM_ADMIN]), async (_req, res) => {
+  // Placeholder — à brancher sur votre système de licences
+  res.json({ items: [] });
 });
 
+module.exports = router;
 
-// View (TENANT_ADMIN) limited to its enterprise
-routerBilling.get('/invoices', auth6, reqRole6([ROLES6.PLATFORM_ADMIN, ROLES6.TENANT_ADMIN]),
-reqSameEnt6((req) => req.query.enterprise_id || req.user.enterprise_id),
-async (req, res, next) => {
-try {
-const enterpriseId = req.user.role === ROLES6.PLATFORM_ADMIN ? (req.query.enterprise_id) : req.user.enterprise_id;
-res.json({ items: [], enterprise_id: enterpriseId });
-} catch (e) { next(e); }
-}
-);
-
-
-module.exports = routerBilling;

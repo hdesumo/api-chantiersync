@@ -1,16 +1,15 @@
 // routes/tenantRoutes.js
 const express = require('express');
-const router = express.Router();
 const auth = require('../middleware/auth');
+const ROLES = require('../middleware/roles');
+const router = express.Router();
 
-// Helper pour charger les modèles sans faire planter le require au montage
-function getModelsOrError(res) {
+function getModelsOrSend(res, wanted = []) {
   try {
-    // eslint-disable-next-line global-require
     const models = require('../models');
-    if (!models || !models.Tenant) {
-      res.status(500).json({ error: 'Sequelize model Tenant not found' });
-      return null;
+    if (!models) { res.status(500).json({ error: 'Sequelize models not available' }); return null; }
+    for (const name of wanted) {
+      if (!models[name]) { res.status(500).json({ error: `Sequelize model ${name} not found` }); return null; }
     }
     return models;
   } catch (e) {
@@ -19,40 +18,28 @@ function getModelsOrError(res) {
   }
 }
 
-function asJsonList(rows) {
-  return { items: rows || [] };
-}
-
-// GET /api/tenants (PLATFORM_ADMIN)
-router.get('/tenants', auth(['PLATFORM_ADMIN']), async (req, res) => {
-  const models = getModelsOrError(res); if (!models) return;
+router.get('/tenants', auth([ROLES.PLATFORM_ADMIN]), async (req, res) => {
+  const models = getModelsOrSend(res, ['Tenant']); if (!models) return;
   const { Tenant } = models;
   try {
-    const order = [['createdAt', 'DESC']];
-    let items = await Tenant.findAll({ order });
-    if (!items?.length) {
-      // fallback si pas de createdAt
-      items = await Tenant.findAll({ order: [['id', 'DESC']] });
-    }
-    res.json(asJsonList(items));
+    const items = await Tenant.findAll({ order: [['id', 'DESC']] });
+    res.json({ items });
   } catch (err) {
     console.error('GET /tenants error:', err);
     res.status(500).json({ error: 'Failed to list tenants' });
   }
 });
 
-// POST /api/tenants (PLATFORM_ADMIN)
-router.post('/tenants', auth(['PLATFORM_ADMIN']), async (req, res) => {
-  const models = getModelsOrError(res); if (!models) return;
+router.post('/tenants', auth([ROLES.PLATFORM_ADMIN]), async (req, res) => {
+  const models = getModelsOrSend(res, ['Tenant']); if (!models) return;
   const { Tenant } = models;
   try {
     const { name, domain } = req.body || {};
-    if (!name || !String(name).trim()) {
-      return res.status(400).json({ error: 'name is required' });
-    }
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
     const created = await Tenant.create({
       name: String(name).trim(),
       domain: domain ? String(domain).trim() : null,
+      suspended: false,
     });
     res.status(201).json(created);
   } catch (err) {
@@ -61,23 +48,47 @@ router.post('/tenants', auth(['PLATFORM_ADMIN']), async (req, res) => {
   }
 });
 
-// PATCH /api/tenants/:id (suspend/unsuspend)
-router.patch('/tenants/:id', auth(['PLATFORM_ADMIN']), async (req, res) => {
-  const models = getModelsOrError(res); if (!models) return;
+router.get('/tenants/:id', auth([ROLES.PLATFORM_ADMIN]), async (req, res) => {
+  const models = getModelsOrSend(res, ['Tenant']); if (!models) return;
   const { Tenant } = models;
   try {
-    const { suspended } = req.body || {};
-    if (typeof suspended === 'undefined') {
-      return res.status(400).json({ error: 'suspended is required (boolean)' });
-    }
     const t = await Tenant.findByPk(req.params.id);
     if (!t) return res.status(404).json({ error: 'Tenant not found' });
-    t.suspended = !!suspended;
+    res.json(t);
+  } catch (err) {
+    console.error('GET /tenants/:id error:', err);
+    res.status(500).json({ error: 'Failed to fetch tenant' });
+  }
+});
+
+router.patch('/tenants/:id', auth([ROLES.PLATFORM_ADMIN]), async (req, res) => {
+  const models = getModelsOrSend(res, ['Tenant']); if (!models) return;
+  const { Tenant } = models;
+  try {
+    const t = await Tenant.findByPk(req.params.id);
+    if (!t) return res.status(404).json({ error: 'Tenant not found' });
+    if (typeof req.body?.suspended !== 'undefined') t.suspended = !!req.body.suspended;
+    if (typeof req.body?.name === 'string') t.name = req.body.name.trim();
+    if (typeof req.body?.domain !== 'undefined') t.domain = req.body.domain ? String(req.body.domain).trim() : null;
     await t.save();
     res.json(t);
   } catch (err) {
     console.error('PATCH /tenants/:id error:', err);
     res.status(500).json({ error: 'Failed to update tenant' });
+  }
+});
+
+router.delete('/tenants/:id', auth([ROLES.PLATFORM_ADMIN]), async (req, res) => {
+  const models = getModelsOrSend(res, ['Tenant']); if (!models) return;
+  const { Tenant } = models;
+  try {
+    const t = await Tenant.findByPk(req.params.id);
+    if (!t) return res.status(404).json({ error: 'Tenant not found' });
+    await t.destroy();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /tenants/:id error:', err);
+    res.status(500).json({ error: 'Failed to delete tenant' });
   }
 });
 

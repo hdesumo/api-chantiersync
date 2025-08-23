@@ -1,20 +1,37 @@
-// File: routes/mediaRoutes.js
-// ---------------------------------------------------------------------
-const express5 = require('express');
-const { authMiddleware: auth5, ROLES: ROLES5 } = require('../middleware/auth');
-const { requireRole: reqRole5, requireSameEnterprise: reqSameEnt5 } = require('../middleware/rbac');
-const routerMedia = express5.Router();
+// routes/mediaRoutes.js
+const express = require('express');
+const auth = require('../middleware/auth');
+const ROLES = require('../middleware/roles');
+const router = express.Router();
 
-
-routerMedia.post('/upload', auth5, reqRole5([ROLES5.PLATFORM_ADMIN, ROLES5.TENANT_ADMIN, ROLES5.MANAGER, ROLES5.STAFF]),
-reqSameEnt5((req) => req.body.enterprise_id || req.user.enterprise_id),
-async (req, res, next) => {
-try {
-// ... handle upload
-res.status(201).json({ uploaded: true });
-} catch (e) { next(e); }
+function getModelsOrSend(res, wanted = []) {
+  try {
+    const models = require('../models');
+    if (!models) { res.status(500).json({ error: 'Sequelize models not available' }); return null; }
+    for (const name of wanted) {
+      if (!models[name]) { res.status(500).json({ error: `Sequelize model ${name} not found` }); return null; }
+    }
+    return models;
+  } catch (e) {
+    res.status(500).json({ error: `Models not available: ${e.message}` });
+    return null;
+  }
 }
-);
 
+const ROLES_READ = [ROLES.PLATFORM_ADMIN, ROLES.TENANT_ADMIN, ROLES.MANAGER, ROLES.STAFF];
 
-module.exports = routerMedia;
+router.get('/media', auth(ROLES_READ), async (req, res) => {
+  const models = getModelsOrSend(res, ['Media']); if (!models) return;
+  const { Media } = models;
+  try {
+    const where = (req.user?.role === ROLES.PLATFORM_ADMIN) ? {} : { enterprise_id: req.user?.enterprise_id || null };
+    const items = await Media.findAll({ where, order: [['id', 'DESC']] });
+    res.json({ items });
+  } catch (err) {
+    console.error('GET /media error:', err);
+    res.status(500).json({ error: 'Failed to list media' });
+  }
+});
+
+module.exports = router;
+

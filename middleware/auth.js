@@ -1,20 +1,16 @@
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
-
-const ROLES = {
-  PLATFORM_ADMIN: 'PLATFORM_ADMIN',
-  TENANT_ADMIN: 'TENANT_ADMIN',
-  MANAGER: 'MANAGER',
-  STAFF: 'STAFF',
-};
+const ROLES = require('./roles');
 
 function normalizeRole(role) {
-  if (role === 'ADMIN') return ROLES.PLATFORM_ADMIN; // compat avec anciens tokens
+  if (role === 'ADMIN') return ROLES.PLATFORM_ADMIN; // compat anciens tokens
   return role || ROLES.STAFF;
 }
 
 function auth(requiredRoles = []) {
   return (req, res, next) => {
     try {
+      // Bearer ou cookie
       let token = null;
       const h = req.headers['authorization'];
       if (h && h.startsWith('Bearer ')) token = h.slice(7);
@@ -37,15 +33,15 @@ function auth(requiredRoles = []) {
         }
       }
       return next();
-    } catch (err) {
+    } catch {
       return res.status(401).json({ error: 'Invalid token' });
     }
   };
 }
 
-// ➡️ Exporte à la fois la fonction et les rôles
-auth.ROLES = ROLES;              // permet auth.ROLES.PLATFORM_ADMIN
-module.exports = auth;           // require('../middleware/auth')
-module.exports.ROLES = ROLES;    // const { ROLES } = require('../middleware/auth')
-module.exports.default = auth;   // compat import ESM transpiled
+// Exports compatibles
+auth.ROLES = ROLES;
+module.exports = auth;            // require('../middleware/auth')
+module.exports.ROLES = ROLES;     // const { ROLES } = require('../middleware/auth')
+module.exports.default = auth;    // compat ESM transpiled
 
