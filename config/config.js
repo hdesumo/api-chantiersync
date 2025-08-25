@@ -1,32 +1,21 @@
-// config/config.js
 require('dotenv').config();
-
-const common = {
-  dialect: 'postgres',
-  protocol: 'postgres',
-  logging: false,
-  dialectOptions: {}
-};
-
-// Active SSL si demandé (utile avec tramway.proxy.rlwy.net)
-if (process.env.FORCE_PG_SSL === '1') {
-  common.dialectOptions.ssl = { require: true, rejectUnauthorized: false };
-}
 
 module.exports = {
   development: {
-    ...common,
-    // En local on utilise l'hôte public
-    url: process.env.DATABASE_URL_PUBLIC || process.env.DATABASE_URL
+    dialect: 'postgres',
+    url: process.env.DATABASE_URL_LOCAL || 'postgresql://postgres:password@localhost:5432/chantiersync_dev',
+    logging: false
   },
   test: {
-    ...common,
-    url: process.env.DATABASE_URL_PUBLIC || process.env.DATABASE_URL
+    dialect: 'postgres',
+    url: process.env.DATABASE_URL_TEST || 'postgresql://postgres:password@localhost:5432/chantiersync_test',
+    logging: false
   },
   production: {
-    ...common,
-    // En prod (sur Railway), tu peux mettre l’URL interne de Railway dans les variables d'env
-    url: process.env.DATABASE_URL || process.env.DATABASE_URL_PUBLIC
+    dialect: 'postgres',
+    url: process.env.DATABASE_URL, // Railway injecte cette variable
+    logging: false
+    // ⚠️ pas de SSL ici, car l'URL interne Railway (postgres.railway.internal) ne le supporte pas
   }
 };
 
