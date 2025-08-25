@@ -7,9 +7,15 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
+const path = require("path");
+const fs = require("fs");
+const companyRoutes = require("./routes/companyRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// s'assurer que le dossier upload existe
+fs.mkdirSync(path.join(process.cwd(), "uploads/logos"), { recursive: true });
 
 /* ----------------------------- Core middlewares ---------------------------- */
 const origins = (process.env.CORS_ORIGINS || '')
@@ -32,6 +38,8 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '5mb' }));
 app.use(cookieParser());
 app.use(cors(corsOptions));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+app.use(companyRoutes);
 
 /* ------------------------------- Rate limiting ----------------------------- */
 // On protège les routes API, mais on laisse / et /status libres
