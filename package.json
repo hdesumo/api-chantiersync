@@ -13,6 +13,11 @@
     "seed:prod": "sequelize-cli db:seed:all --env production",
     "migrate:undo:prod": "sequelize-cli db:migrate:undo --env production"
   },
+  "db:migrate": "npx sequelize-cli db:migrate",
+    "db:migrate:undo": "npx sequelize-cli db:migrate:undo",
+    "db:seed": "npx sequelize-cli db:seed:all",
+    "db:seed:undo": "npx sequelize-cli db:seed:undo:all"
+  },
   "dependencies": {
     "cookie": "^0.7.2",
     "cookie-parser": "^1.4.7",
