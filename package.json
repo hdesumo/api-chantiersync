@@ -2,38 +2,36 @@
   "name": "api-chantiersync",
   "version": "1.0.0",
   "private": true,
-  "type": "commonjs",
   "main": "app.js",
   "engines": {
-    "node": "18.x"
+    "node": ">=18"
   },
   "scripts": {
     "start": "node app.js",
-    "migrate:prod": "sequelize-cli db:migrate --env production",
-    "seed:prod": "sequelize-cli db:seed:all --env production",
-    "migrate:undo:prod": "sequelize-cli db:migrate:undo --env production"
-  },
-  "db:migrate": "npx sequelize-cli db:migrate",
+    "dev": "nodemon app.js",
+
+    "db:init": "npx sequelize-cli init",
+    "db:migrate": "npx sequelize-cli db:migrate",
     "db:migrate:undo": "npx sequelize-cli db:migrate:undo",
+    "db:migrate:undo:all": "npx sequelize-cli db:migrate:undo:all",
     "db:seed": "npx sequelize-cli db:seed:all",
-    "db:seed:undo": "npx sequelize-cli db:seed:undo:all"
+    "db:seed:undo": "npx sequelize-cli db:seed:undo:all",
+    "db:reset": "npm run db:migrate:undo:all && npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
-    "cookie": "^0.7.2",
-    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "express-rate-limit": "^8.0.1",
-    "helmet": "^7.2.0",
-    "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.1",
-    "multer": "^2.0.2",
-    "pg": "^8.16.3",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.12.0",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.7"
   },
   "devDependencies": {
+    "nodemon": "^3.1.0",
     "sequelize-cli": "^6.6.3"
   }
 }
+
