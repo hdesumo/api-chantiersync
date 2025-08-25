@@ -10,8 +10,8 @@
       "migrate:undo:all": "NODE_ENV=production npx sequelize-cli db:migrate:undo:all",
       "seed": "NODE_ENV=production npx sequelize-cli db:seed:all",
       "seed:undo": "NODE_ENV=production npx sequelize-cli db:seed:undo:all"
-  },
-  "dependencies": {
+    }
+    "dependencies": {
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
