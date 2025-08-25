@@ -9,10 +9,11 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const path = require("path");
 const fs = require("fs");
-const companyRoutes = require("./routes/companyRoutes");
+const enterpriseRoutes = require('./routes/enterpriseRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const uploadsRoot = path.join(process.cwd(), 'uploads');
 
 // s'assurer que le dossier upload existe
 fs.mkdirSync(path.join(process.cwd(), "uploads/logos"), { recursive: true });
@@ -39,7 +40,7 @@ app.use(express.json({ limit: '5mb' }));
 app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
-app.use(companyRoutes);
+app.use(enterpriseRoutes);
 
 /* ------------------------------- Rate limiting ----------------------------- */
 // On protège les routes API, mais on laisse / et /status libres
