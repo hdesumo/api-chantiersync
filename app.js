@@ -41,6 +41,7 @@ app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use(enterpriseRoutes);
+app.use('/api', require('./routes/authRoutes'));
 
 /* ------------------------------- Rate limiting ----------------------------- */
 // On protège les routes API, mais on laisse / et /status libres
