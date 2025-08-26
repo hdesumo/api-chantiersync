@@ -11,13 +11,12 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // ⚡ Vérification bcrypt sur password_hash
+    // Vérifie bien le password_hash
     const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Génération du token JWT
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET || 'secret',
