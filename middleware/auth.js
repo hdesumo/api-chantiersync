@@ -1,28 +1,37 @@
-// middleware/auth.js
 const jwt = require('jsonwebtoken');
+const ROLES = require('./roles');
 
 /**
- * Middleware d'authentification JWT
- * Vérifie le header Authorization et attache l'utilisateur décodé à req.user
+ * Middleware factory : auth(allowedRoles)
+ * - Vérifie le JWT
+ * - Vérifie le rôle si des rôles sont passés
  */
-function authMiddleware(req, res, next) {
-  const authHeader = req.headers['authorization'];
+function auth(allowedRoles = []) {
+  return (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(403).json({ error: 'Forbidden: missing or invalid token' });
+    }
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(403).json({ error: 'Forbidden: missing or invalid token' });
-  }
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+      req.user = decoded;
 
-  const token = authHeader.split(' ')[1];
+      // Vérification rôle si nécessaire
+      if (Array.isArray(allowedRoles) && allowedRoles.length > 0) {
+        if (!allowedRoles.includes(req.user.role)) {
+          return res.status(403).json({ error: 'Forbidden: insufficient role' });
+        }
+      }
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-    req.user = decoded; // { id, role, iat, exp }
-    next();
-  } catch (err) {
-    console.error('JWT verification error:', err);
-    return res.status(403).json({ error: 'Forbidden: token invalid or expired' });
-  }
+      next();
+    } catch (err) {
+      console.error('JWT verification error:', err);
+      return res.status(403).json({ error: 'Forbidden: token invalid or expired' });
+    }
+  };
 }
 
-module.exports = authMiddleware;
+module.exports = auth;
 
