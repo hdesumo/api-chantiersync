@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const authMiddleware = require('./middleware/auth');
+const licenseRoutes = require("./routes/licenseRoutes");
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use(cookieParser());
 // --- ROUTES ---
 // Publiques
 app.use('/api', require('./routes/authRoutes')); // login/register
+app.use("/api/licenses", licenseRoutes);
 
 // Protégées (JWT obligatoire)
 app.use('/api/sites', authMiddleware, require('./routes/siteRoutes'));

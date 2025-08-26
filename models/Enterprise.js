@@ -1,21 +1,64 @@
-// models/Enterprise.js
-module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('Enterprise', {
-    id:       { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-    name:     { type: DataTypes.STRING, allowNull: false },
-    slug:     { type: DataTypes.STRING, allowNull: false, unique: true },
-    plan:     { type: DataTypes.ENUM('free', 'pro'), defaultValue: 'free' },
-    isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+"use strict";
 
-    // nouveaux champs profil
-    phone:    { type: DataTypes.STRING(64), allowNull: true },
-    address:  { type: DataTypes.TEXT, allowNull: true },
-    logo_url: { type: DataTypes.TEXT, allowNull: true },
-    leaders:  { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }
-  }, {
-    tableName: 'enterprises',
-    underscored: true,
-    timestamps: true
-  });
+module.exports = (sequelize, DataTypes) => {
+  const Enterprise = sequelize.define(
+    "Enterprise",
+    {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true,
+      },
+      name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      logo: {
+        type: DataTypes.STRING,
+      },
+      directors: {
+        type: DataTypes.STRING,
+      },
+      address: {
+        type: DataTypes.STRING,
+      },
+      phone: {
+        type: DataTypes.STRING,
+      },
+    },
+    {
+      tableName: "enterprises",
+      underscored: true,
+    }
+  );
+
+  Enterprise.associate = (models) => {
+    // Un enterprise peut avoir plusieurs utilisateurs
+    Enterprise.hasMany(models.User, {
+      foreignKey: "enterprise_id",
+      as: "users",
+    });
+
+    // Un enterprise peut avoir plusieurs sites
+    Enterprise.hasMany(models.Site, {
+      foreignKey: "enterprise_id",
+      as: "sites",
+    });
+
+    // Un enterprise peut avoir plusieurs rapports (via sites)
+    Enterprise.hasMany(models.Report, {
+      foreignKey: "enterprise_id",
+      as: "reports",
+    });
+
+    // Une seule licence liée à l’entreprise
+    Enterprise.hasOne(models.License, {
+      foreignKey: "enterprise_id",
+      as: "license",
+      onDelete: "CASCADE",
+    });
+  };
+
+  return Enterprise;
 };
 
