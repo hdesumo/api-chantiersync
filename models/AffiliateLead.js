@@ -1,7 +1,6 @@
 // models/AffiliateLead.js
 module.exports = (sequelize, DataTypes) => {
   const AffiliateLead = sequelize.define("AffiliateLead", {
-    // Exemple de champs — adapte selon ta table réelle
     name: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -16,10 +15,9 @@ module.exports = (sequelize, DataTypes) => {
     },
   });
 
-  // Associations (si besoin)
   AffiliateLead.associate = (models) => {
-    // Exemple : un lead appartient à un partenaire
-    AffiliateLead.belongsTo(models.affiliatePartner, {
+    // Un lead appartient à un partenaire
+    AffiliateLead.belongsTo(models.AffiliatePartner, {
       foreignKey: "partnerId",
       as: "partner",
     });
