@@ -11,7 +11,7 @@ module.exports = {
     logging: false,
   },
   production: {
-    use_env_variable: "DATABASE_URL",   // 🔥 Sequelize lira process.env.DATABASE_URL
+    use_env_variable: "DATABASE_URL",  // 🔥 obligatoire
     dialect: "postgres",
     dialectOptions: {
       ssl: {
