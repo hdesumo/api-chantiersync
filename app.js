@@ -6,8 +6,12 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
+// License CRON
+require("./jobs/licenseCron");
+
 const authMiddleware = require('./middleware/auth');
 const licenseRoutes = require("./routes/licenseRoutes");
+const enterpriseRoutes = require("./routes/enterpriseRoutes");
 
 const app = express();
 
@@ -23,6 +27,7 @@ app.use(cookieParser());
 // Publiques
 app.use('/api', require('./routes/authRoutes')); // login/register
 app.use("/api/licenses", licenseRoutes);
+app.use("/api/enterprises", enterpriseRoutes);
 
 // Protégées (JWT obligatoire)
 app.use('/api/sites', authMiddleware, require('./routes/siteRoutes'));

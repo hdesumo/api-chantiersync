@@ -1,23 +1,40 @@
 "use strict";
 
+const { v4: uuidv4 } = require("uuid");
+
 module.exports = {
   async up(queryInterface) {
-    // ⚠️ Remplace par l'ID réel de ton entreprise (dans ta table enterprises)
-    const enterpriseId = "ID_DE_TON_ENTREPRISE";
+    // On récupère un enterprise_id existant
+    const [enterprises] = await queryInterface.sequelize.query(
+      `SELECT id FROM enterprises LIMIT 1;`
+    );
+
+    if (!enterprises || enterprises.length === 0) {
+      console.warn("⚠️ Aucun enterprise trouvé → licence non créée.");
+      return;
+    }
+
+    const enterpriseId = enterprises[0].id;
+
+    const now = new Date();
+    const endDate = new Date();
+    endDate.setFullYear(now.getFullYear() + 1); // licence de 1 an
 
     await queryInterface.bulkInsert("licenses", [
       {
-        id: "11111111-2222-3333-4444-555555555555", // UUID fixe pour test
+        id: uuidv4(),
         enterprise_id: enterpriseId,
         type: "ANNUAL",
-        start_date: new Date(),
-        end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+        start_date: now,
+        end_date: endDate,
         max_users: 50,
         status: "active",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: now,
+        updated_at: now,
       },
     ]);
+
+    console.log(`✅ Licence ANNUAL créée pour enterprise ${enterpriseId}`);
   },
 
   async down(queryInterface) {

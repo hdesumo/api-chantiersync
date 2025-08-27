@@ -1,8 +1,18 @@
 "use strict";
+const { Model } = require("sequelize");
 
 module.exports = (sequelize, DataTypes) => {
-  const License = sequelize.define(
-    "License",
+  class License extends Model {
+    static associate(models) {
+      // Une licence appartient à une entreprise
+      License.belongsTo(models.Enterprise, {
+        foreignKey: "enterprise_id",
+        as: "enterprise",
+      });
+    }
+  }
+
+  License.init(
     {
       id: {
         type: DataTypes.UUID,
@@ -12,16 +22,20 @@ module.exports = (sequelize, DataTypes) => {
       enterprise_id: {
         type: DataTypes.UUID,
         allowNull: false,
+        references: {
+          model: "enterprises",
+          key: "id",
+        },
+        onDelete: "CASCADE",
       },
       type: {
-        type: DataTypes.STRING,
+        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"),
         allowNull: false,
-        defaultValue: "ANNUAL", // "ANNUAL", "MONTHLY", "TRIAL"
+        defaultValue: "TRIAL",
       },
       start_date: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW,
       },
       end_date: {
         type: DataTypes.DATE,
@@ -29,29 +43,21 @@ module.exports = (sequelize, DataTypes) => {
       },
       max_users: {
         type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 10,
+        defaultValue: 5,
       },
       status: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: "active", // "active", "expired", "suspended"
+        type: DataTypes.ENUM("active", "expired", "suspended"),
+        defaultValue: "active",
       },
     },
     {
+      sequelize,
+      modelName: "License",
       tableName: "licenses",
-      underscored: true,
+      underscored: true, // created_at, updated_at
+      timestamps: true,
     }
   );
-
-  License.associate = (models) => {
-    // Une licence appartient à une entreprise
-    License.belongsTo(models.Enterprise, {
-      foreignKey: "enterprise_id",
-      as: "enterprise",
-      onDelete: "CASCADE",
-    });
-  };
 
   return License;
 };
