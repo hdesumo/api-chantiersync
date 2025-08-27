@@ -6,11 +6,13 @@ const path = require("path");
 const Sequelize = require("sequelize");
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || "development";
-const configFile = require(__dirname + "/../config/config.js");
+
+// 🔥 Charger proprement config.js
+const configFile = require(path.join(__dirname, "..", "config", "config.js"));
 const config = configFile[env];
 
 if (!config) {
-  throw new Error(`❌ Config not found for env: ${env}`);
+  throw new Error(`❌ Config not found for env: ${env} in config/config.js`);
 }
 
 let sequelize;
@@ -27,7 +29,7 @@ if (config.use_env_variable) {
 
 const db = {};
 
-// Charger les modèles
+// Charger tous les modèles
 fs.readdirSync(__dirname)
   .filter((file) => {
     return (
@@ -44,15 +46,7 @@ fs.readdirSync(__dirname)
     db[model.name] = model;
   });
 
-// Exécuter les associations si présentes
+// Exécuter les associations
 Object.keys(db).forEach((modelName) => {
-  if (db[modelName].associate) {
-    db[modelName].associate(db);
-  }
-});
-
-db.sequelize = sequelize;
-db.Sequelize = Sequelize;
-
-module.exports = db;
+  if (db[modelNam]()
 
