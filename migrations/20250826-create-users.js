@@ -1,35 +1,70 @@
-'use strict';
+"use strict";
 
+/** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('users', {
+    await queryInterface.createTable("users", {
       id: {
         type: Sequelize.UUID,
-        defaultValue: Sequelize.literal('gen_random_uuid()'),
-        primaryKey: true
+        defaultValue: Sequelize.literal("gen_random_uuid()"),
+        primaryKey: true,
       },
       enterprise_id: {
         type: Sequelize.UUID,
-        allowNull: false,
-        references: { model: 'enterprises', key: 'id' },
-        onDelete: 'CASCADE'
+        allowNull: true,
+        references: {
+          model: "enterprises",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "SET NULL",
       },
-      full_name: { type: Sequelize.STRING, allowNull: false },
-      email: { type: Sequelize.STRING, allowNull: false, unique: true },
-      phone: { type: Sequelize.STRING },
+      full_name: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      email: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        unique: true,
+      },
+      phone: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
       role: {
-        type: Sequelize.ENUM('SUPERADMIN','ADMIN','SITE_MANAGER'),
+        type: Sequelize.ENUM(
+          "SUPERADMIN",
+          "TENANT_ADMIN",
+          "MANAGER",
+          "AGENT"
+        ),
         allowNull: false,
-        defaultValue: 'ADMIN'
+        defaultValue: "TENANT_ADMIN",
       },
-      password_hash: { type: Sequelize.STRING, allowNull: false },
-      is_active: { type: Sequelize.BOOLEAN, defaultValue: true },
-      createdAt: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.NOW },
-      updatedAt: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.NOW }
+      password_hash: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      is_active: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: true,
+      },
+      createdAt: {
+        allowNull: false,
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.literal("NOW()"),
+      },
+      updatedAt: {
+        allowNull: false,
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.literal("NOW()"),
+      },
     });
   },
-  async down(queryInterface) {
-    await queryInterface.dropTable('users');
-  }
+
+  async down(queryInterface, Sequelize) {
+    await queryInterface.dropTable("users");
+  },
 };
 
