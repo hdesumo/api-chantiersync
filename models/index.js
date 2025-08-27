@@ -28,7 +28,7 @@ if (config.use_env_variable) {
 
 const db = {};
 
-// Charger automatiquement tous les modèles
+// Charger et vérifier tous les modèles
 fs.readdirSync(__dirname)
   .filter((file) => {
     return (
@@ -38,17 +38,23 @@ fs.readdirSync(__dirname)
     );
   })
   .forEach((file) => {
-    const model = require(path.join(__dirname, file))(
-      sequelize,
-      Sequelize.DataTypes
-    );
+    console.log("🔍 Loading model:", file); // log debug
+    const required = require(path.join(__dirname, file));
+
+    if (typeof required !== "function") {
+      throw new Error(`❌ Model ${file} does not export a function`);
+    }
+
+    const model = required(sequelize, Sequelize.DataTypes);
     db[model.name] = model;
+    console.log(`✅ Loaded model: ${model.name}`);
   });
 
 // Exécuter les associations si présentes
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
+    console.log(`🔗 Associated model: ${modelName}`);
   }
 });
 
@@ -56,3 +62,4 @@ db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
 module.exports = db;
+
