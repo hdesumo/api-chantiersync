@@ -11,7 +11,7 @@ module.exports = {
     logging: false,
   },
   production: {
-    use_env_variable: "DATABASE_URL",   // 🔥 Railway injecte DATABASE_URL
+    use_env_variable: "DATABASE_URL",   // 🔥 Sequelize lira process.env.DATABASE_URL
     dialect: "postgres",
     dialectOptions: {
       ssl: {

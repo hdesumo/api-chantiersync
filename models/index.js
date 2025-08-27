@@ -6,16 +6,17 @@ const path = require("path");
 const Sequelize = require("sequelize");
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || "development";
-const config = require(__dirname + "/../config/config.js")[env];
-const db = {};
+const configFile = require(__dirname + "/../config/config.js");
+const config = configFile[env];
+
+if (!config) {
+  throw new Error(`❌ Config not found for env: ${env}`);
+}
 
 let sequelize;
-
 if (config.use_env_variable) {
-  // ✅ En production → Railway fournit DATABASE_URL
   sequelize = new Sequelize(process.env[config.use_env_variable], config);
 } else {
-  // ✅ En développement → DB_USER / DB_PASS / DB_NAME / DB_HOST
   sequelize = new Sequelize(
     config.database,
     config.username,
@@ -24,14 +25,15 @@ if (config.use_env_variable) {
   );
 }
 
-// Charger automatiquement tous les modèles
+const db = {};
+
+// Charger les modèles
 fs.readdirSync(__dirname)
   .filter((file) => {
     return (
       file.indexOf(".") !== 0 &&
       file !== basename &&
-      file.slice(-3) === ".js" &&
-      file.indexOf(".test.js") === -1
+      file.slice(-3) === ".js"
     );
   })
   .forEach((file) => {
@@ -42,7 +44,7 @@ fs.readdirSync(__dirname)
     db[model.name] = model;
   });
 
-// Exécuter les associations
+// Exécuter les associations si présentes
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
