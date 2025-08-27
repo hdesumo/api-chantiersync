@@ -10,15 +10,21 @@ const config = require(__dirname + "/../config/config.js")[env];
 const db = {};
 
 let sequelize;
+
 if (config.use_env_variable) {
-  // ✅ En production → DATABASE_URL
+  // ✅ En production → Railway fournit DATABASE_URL
   sequelize = new Sequelize(process.env[config.use_env_variable], config);
 } else {
   // ✅ En développement → DB_USER / DB_PASS / DB_NAME / DB_HOST
-  sequelize = new Sequelize(config.database, config.username, config.password, config);
+  sequelize = new Sequelize(
+    config.database,
+    config.username,
+    config.password,
+    config
+  );
 }
 
-// Charger automatiquement les modèles
+// Charger automatiquement tous les modèles
 fs.readdirSync(__dirname)
   .filter((file) => {
     return (
@@ -29,11 +35,14 @@ fs.readdirSync(__dirname)
     );
   })
   .forEach((file) => {
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
+    const model = require(path.join(__dirname, file))(
+      sequelize,
+      Sequelize.DataTypes
+    );
     db[model.name] = model;
   });
 
-// Gérer les associations
+// Exécuter les associations
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {
     db[modelName].associate(db);

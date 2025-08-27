@@ -1,55 +1,49 @@
 // app.js
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
-require('dotenv').config();
-
-// License CRON
-require("./jobs/licenseCron");
-
-const authMiddleware = require('./middleware/auth');
-const licenseRoutes = require("./routes/licenseRoutes");
-const enterpriseRoutes = require("./routes/enterpriseRoutes");
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+const bodyParser = require("body-parser");
 
 const app = express();
 
-// Middlewares globaux
+// Middlewares
 app.use(cors());
-app.use(helmet());
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(morgan("dev"));
+app.use(bodyParser.json());
 
-// --- ROUTES ---
-// Publiques
-app.use('/api', require('./routes/authRoutes')); // login/register
-app.use("/api/licenses", licenseRoutes);
-app.use("/api/enterprises", enterpriseRoutes);
-
-// Protégées (JWT obligatoire)
-app.use('/api/sites', authMiddleware, require('./routes/siteRoutes'));
-app.use('/api/reports', authMiddleware, require('./routes/reportRoutes'));
-app.use('/api/tenants', authMiddleware, require('./routes/tenantRoutes'));
-app.use('/api/users', authMiddleware, require('./routes/userRoutes'));
-app.use('/api/media', authMiddleware, require('./routes/mediaRoutes'));
-app.use('/api/billing', authMiddleware, require('./routes/billingRoutes'));
-app.use('/api/affiliate-admin', authMiddleware, require('./routes/affiliateAdminRoutes'));
-
-// Si certaines routes sont publiques
-app.use('/', require('./routes/affiliateRoutes'));
-
-// Fallback 404
-app.use((req, res) => {
-  res.status(404).json({ error: 'Not Found', path: req.originalUrl });
+// ✅ Route de healthcheck (toujours dispo)
+app.get("/status", (req, res) => {
+  res.json({ status: "API OK", timestamp: new Date().toISOString() });
 });
 
-// Lancement du serveur
+// Routes API
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/licenses", require("./routes/licenseRoutes"));
+// … ajoute ici les autres routes API
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: "Not Found", path: req.originalUrl });
+});
+
+// Erreur globale
+app.use((err, req, res, next) => {
+  console.error("🔥 Unexpected error:", err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+// Jobs (protégé avec try/catch pour ne pas bloquer l’API)
+try {
+  require("./jobs/licenseCron");
+} catch (err) {
+  console.error("⚠️ Erreur lors du chargement de licenseCron:", err.message);
+}
+
+// Lancement serveur
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`✅ DB connected`); // DB init devrait être loguée ailleurs
   console.log(`🚀 API running on :${PORT}`);
 });
+
+module.exports = app;
 
