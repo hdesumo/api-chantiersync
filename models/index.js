@@ -7,7 +7,6 @@ const Sequelize = require("sequelize");
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || "development";
 
-// 🔥 Charger proprement config.js
 const configFile = require(path.join(__dirname, "..", "config", "config.js"));
 const config = configFile[env];
 
@@ -29,7 +28,7 @@ if (config.use_env_variable) {
 
 const db = {};
 
-// Charger tous les modèles
+// Charger automatiquement tous les modèles
 fs.readdirSync(__dirname)
   .filter((file) => {
     return (
@@ -46,7 +45,14 @@ fs.readdirSync(__dirname)
     db[model.name] = model;
   });
 
-// Exécuter les associations
+// Exécuter les associations si présentes
 Object.keys(db).forEach((modelName) => {
-  if (db[modelNam]()
+  if (db[modelName].associate) {
+    db[modelName].associate(db);
+  }
+});
 
+db.sequelize = sequelize;
+db.Sequelize = Sequelize;
+
+module.exports = db;
