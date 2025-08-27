@@ -1,3 +1,4 @@
+// models/index.js
 "use strict";
 
 const fs = require("fs");
@@ -10,18 +11,21 @@ const db = {};
 
 let sequelize;
 if (config.use_env_variable) {
+  // ✅ En production → DATABASE_URL
   sequelize = new Sequelize(process.env[config.use_env_variable], config);
 } else {
+  // ✅ En développement → DB_USER / DB_PASS / DB_NAME / DB_HOST
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
-// ✅ Chargement automatique des modèles
+// Charger automatiquement les modèles
 fs.readdirSync(__dirname)
   .filter((file) => {
     return (
       file.indexOf(".") !== 0 &&
       file !== basename &&
-      file.slice(-3) === ".js"
+      file.slice(-3) === ".js" &&
+      file.indexOf(".test.js") === -1
     );
   })
   .forEach((file) => {
@@ -29,14 +33,13 @@ fs.readdirSync(__dirname)
     db[model.name] = model;
   });
 
-// ✅ Appeler les associations si elles existent
+// Gérer les associations
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
   }
 });
 
-// ✅ Exporter sequelize et les modèles
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

@@ -1,27 +1,25 @@
-require('dotenv').config();
-const { URL } = require('url');
-
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set in .env");
-}
-
-const dbUrl = new URL(process.env.DATABASE_URL);
+// config/config.js
+require("dotenv").config();
 
 module.exports = {
+  development: {
+    username: process.env.DB_USER || "postgres",
+    password: process.env.DB_PASS || "postgres",
+    database: process.env.DB_NAME || "chantiersync_dev",
+    host: process.env.DB_HOST || "127.0.0.1",
+    dialect: "postgres",
+    logging: false,
+  },
   production: {
-    username: dbUrl.username,
-    password: dbUrl.password,
-    database: dbUrl.pathname.slice(1),
-    host: dbUrl.hostname,
-    port: dbUrl.port,
+    use_env_variable: "DATABASE_URL", // 🔥 Sequelize ira lire process.env.DATABASE_URL
     dialect: "postgres",
     dialectOptions: {
       ssl: {
         require: true,
-        rejectUnauthorized: false
-      }
+        rejectUnauthorized: false,
+      },
     },
-    logging: false
-  }
+    logging: false,
+  },
 };
 
