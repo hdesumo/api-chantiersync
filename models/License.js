@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       type: {
-        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"), // valeurs de enum_licenses_type
+        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"), // enum_licenses_type
         allowNull: false,
       },
       start_date: {
@@ -29,14 +29,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       status: {
-        type: DataTypes.ENUM("active", "expired", "suspended"), // valeurs de enum_licenses_status
+        type: DataTypes.ENUM("active", "expired", "suspended"), // enum_licenses_status
         allowNull: false,
         defaultValue: "active",
       },
       createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
-        field: "created_at", // map DB → Sequelize camelCase
+        field: "created_at", // mappe la colonne snake_case
       },
       updatedAt: {
         type: DataTypes.DATE,
