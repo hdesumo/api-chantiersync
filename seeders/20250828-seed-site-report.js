@@ -66,7 +66,7 @@ module.exports = {
           user_id: agent.id,
           title: "Rapport initial sécurité",
           description: "Casque de sécurité manquant sur le site.",
-          category: "safety",
+          type: "safety",
           priority: "HIGH",
           createdAt: new Date(),
           updatedAt: new Date(),
