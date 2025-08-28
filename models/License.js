@@ -1,3 +1,4 @@
+// models/License.js
 module.exports = (sequelize, DataTypes) => {
   const License = sequelize.define(
     "License",
@@ -12,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       type: {
-        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"), // 👈 enum DB
+        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"), // doit matcher DB
         allowNull: false,
       },
       start_date: {
@@ -28,21 +29,23 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       status: {
-        type: DataTypes.ENUM("active", "expired", "suspended"), // 👈 enum DB
+        type: DataTypes.ENUM("active", "expired", "suspended"), // doit matcher DB
         allowNull: false,
         defaultValue: "active",
       },
       createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
+        field: "createdAt", // 👈 DB a bien createdAt, pas created_at
       },
       updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
+        field: "updatedAt",
       },
     },
     {
-      tableName: "licenses",
+      tableName: "licenses", // 👈 assure Sequelize qu'il utilise la bonne table
       timestamps: true,
     }
   );
