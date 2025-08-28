@@ -1,88 +1,48 @@
+// seeders/20250828-seed-site-report.js
 "use strict";
 
 const { v4: uuidv4 } = require("uuid");
 
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    // 🔍 Récupérer l’entreprise "Tenant Enterprise"
+  up: async (queryInterface, Sequelize) => {
+    // ⚠️ on suppose qu’un site et un user existent déjà
+    const [site] = await queryInterface.sequelize.query(
+      `SELECT id FROM sites LIMIT 1;`
+    );
+    const [user] = await queryInterface.sequelize.query(
+      `SELECT id FROM users LIMIT 1;`
+    );
     const [enterprise] = await queryInterface.sequelize.query(
-      `SELECT id FROM enterprises WHERE slug = 'tenant-enterprise' LIMIT 1;`,
-      { type: Sequelize.QueryTypes.SELECT }
+      `SELECT id FROM enterprises LIMIT 1;`
     );
 
-    if (!enterprise) {
-      console.log("⚠️ Aucune entreprise trouvée pour créer un site.");
+    if (!site.length || !user.length || !enterprise.length) {
+      console.warn("⚠️ Aucun site/user/enterprise trouvé → seed ignoré");
       return;
     }
 
-    // 🔍 Récupérer l'Agent
-    const [agent] = await queryInterface.sequelize.query(
-      `SELECT id FROM users WHERE email = 'agent1@chantiersync.com' LIMIT 1;`,
-      { type: Sequelize.QueryTypes.SELECT }
-    );
-
-    if (!agent) {
-      console.log("⚠️ Aucun agent trouvé pour créer un rapport.");
-      return;
-    }
-
-    // 1️⃣ Vérifier / créer un site
-    const [existingSite] = await queryInterface.sequelize.query(
-      `SELECT id FROM sites WHERE slug = 'chantier-principal' LIMIT 1;`,
-      { type: Sequelize.QueryTypes.SELECT }
-    );
-
-    let siteId;
-    if (!existingSite) {
-      siteId = uuidv4();
-      await queryInterface.bulkInsert("sites", [
-        {
-          id: siteId,
-          enterprise_id: enterprise.id,
-          name: "Chantier Principal",
-          slug: "chantier-principal",
-          address: "Zone industrielle, Dakar",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ]);
-      console.log("✅ Site 'Chantier Principal' créé");
-    } else {
-      siteId = existingSite.id;
-    }
-
-    // 2️⃣ Vérifier / créer un rapport
-    const [existingReport] = await queryInterface.sequelize.query(
-      `SELECT id FROM reports WHERE title = 'Rapport initial sécurité' LIMIT 1;`,
-      { type: Sequelize.QueryTypes.SELECT }
-    );
-
-    if (!existingReport) {
-      const reportId = uuidv4();
-      await queryInterface.bulkInsert("reports", [
-        {
-          id: reportId,
-          site_id: siteId,
-          user_id: agent.id,
-          title: "Rapport initial sécurité",
-          description: "Casque de sécurité manquant sur le site.",
-          type: "safety",
-          priority: "HIGH",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ]);
-      console.log("✅ Rapport initial créé pour l’Agent");
-    }
+    await queryInterface.bulkInsert("reports", [
+      {
+        id: uuidv4(),
+        enterprise_id: enterprise[0].id,
+        site_id: site[0].id,
+        user_id: user[0].id,
+        type: "incident",                 // ✅ correspond à enum_reports_type
+        title: "Rapport test",
+        description: "Rapport de démonstration auto-généré",
+        priority: "high",                 // ✅ enum_reports_priority (minuscule)
+        location: "Dakar, Sénégal",
+        client_ts: new Date(),
+        status: "open",                   // ✅ enum_reports_status
+        sync_status: "synced",            // ✅ enum_reports_sync_status
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
   },
 
-  async down(queryInterface) {
-    await queryInterface.bulkDelete("reports", {
-      title: "Rapport initial sécurité",
-    });
-    await queryInterface.bulkDelete("sites", {
-      slug: "chantier-principal",
-    });
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.bulkDelete("reports", null, {});
   },
 };
 
