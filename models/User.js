@@ -10,21 +10,27 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     role: {
-      type: DataTypes.ENUM("SUPERADMIN", "ADMIN", "SITE_MANAGER", "TENANT_ADMIN", "AGENT"),
-      allowNull: false,
-      defaultValue: "USER"
+      type: DataTypes.ENUM(
+        "SUPERADMIN",
+        "ADMIN",
+        "SITE_MANAGER",
+        "TENANT_ADMIN",
+        "AGENT"
+      ),
+      allowNull: false
     },
     enterprise_id: {
       type: DataTypes.UUID,
       allowNull: true
     },
-    tenantId: {
+    tenantId: {                          // 👈 important : camelCase
       type: DataTypes.UUID,
-      allowNull: true
+      allowNull: true,
+      field: "tenantId"                  // 👈 force Sequelize à utiliser tenantId (et pas tenant_id)
     }
   }, {
-    tableName: "users",   // 👈 forcer minuscule
-    underscored: true     // 👈 pour que Sequelize mappe created_at → createdAt
+    tableName: "users",                  // 👈 force minuscule
+    timestamps: true
   });
 
   return User;
