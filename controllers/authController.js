@@ -1,77 +1,34 @@
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+// controllers/authController.js
+const { User } = require("../models");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 
-// REGISTER
-exports.register = async (req, res) => {
-  const { email, password, role } = req.body;
-
+async function login(req, res) {
   try {
-    const existing = await User.findOne({ where: { email } });
-    if (existing) {
-      return res.status(400).json({ error: "User already exists" });
-    }
-
-    const password_hash = await bcrypt.hash(password, 10);
-
-    const user = await User.create({
-      email,
-      password_hash,
-      role: role || "TENANT_ADMIN"  // par défaut si non fourni
-    });
-
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET || "secret",
-      { expiresIn: "1d" }
-    );
-
-    return res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-    });
-  } catch (err) {
-    console.error("Register error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
-};
-
-// LOGIN
-exports.login = async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
+    const { email, password } = req.body;
     const user = await User.findOne({ where: { email } });
+
     if (!user) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(401).json({ error: "Utilisateur introuvable" });
     }
 
-    const isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: "Mot de passe incorrect" });
     }
 
     const token = jwt.sign(
       { id: user.id, role: user.role },
-      process.env.JWT_SECRET || "secret",
+      process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    return res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-    });
+    return res.json({ token });
   } catch (err) {
-    console.error("Login error:", err);
+    console.error("Erreur login:", err);
     return res.status(500).json({ error: "Server error" });
   }
-};
+}
+
+module.exports = { login };
 

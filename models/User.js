@@ -40,20 +40,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         field: "tenant_id", // 👈 DB = tenant_id, Sequelize expose tenantId
       },
-      createdAt: {
-        type: DataTypes.DATE,
-        allowNull: false,
-        field: "created_at",
-      },
-      updatedAt: {
-        type: DataTypes.DATE,
-        allowNull: false,
-        field: "updated_at",
-      },
+      
     },
     {
       tableName: "users",  // 👈 force le nom minuscule
-      underscored: true,   // 👈 mappe created_at / updated_at
+     
     }
   );
 
