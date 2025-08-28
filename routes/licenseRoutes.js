@@ -1,36 +1,51 @@
 const express = require("express");
-const { body, param, query } = require("express-validator");
+const router = express.Router();
 const licenseController = require("../controllers/licenseController");
 const { authMiddleware, requireRole } = require("../middleware/auth");
 
-const router = express.Router();
+// ==========================
+// Routes CRUD Licenses
+// ==========================
 
-// Validation rules
-const licenseValidation = [
-  body("enterprise_id").isUUID().withMessage("enterprise_id doit être un UUID valide"),
-  body("type").isIn(["TRIAL", "MONTHLY", "ANNUAL"]).withMessage("type invalide"),
-  body("start_date").isISO8601().toDate().withMessage("start_date doit être une date valide"),
-  body("end_date").isISO8601().toDate().withMessage("end_date doit être une date valide"),
-  body("max_users").isInt({ min: 1 }).withMessage("max_users doit être un entier positif"),
-  body("status").isIn(["active", "expired", "suspended"]).withMessage("status invalide")
-];
+// GET all licenses (réservé SUPERADMIN)
+router.get(
+  "/",
+  authMiddleware,
+  requireRole("SUPERADMIN"),
+  licenseController.getAll
+);
 
-// CRUD
-router.get("/", authMiddleware, requireRole("SUPERADMIN"), licenseController.getAll);
-
+// GET license by ID
 router.get(
   "/:id",
   authMiddleware,
   requireRole("SUPERADMIN"),
-  param("id").isUUID().withMessage("ID invalide"),
   licenseController.getById
 );
 
-router.post("/", authMiddleware, requireRole("SUPERADMIN"), licenseValidation, licenseController.create);
+// CREATE license
+router.post(
+  "/",
+  authMiddleware,
+  requireRole("SUPERADMIN"),
+  licenseController.create
+);
 
-router.put("/:id", authMiddleware, requireRole("SUPERADMIN"), licenseValidation, licenseController.update);
+// UPDATE license
+router.put(
+  "/:id",
+  authMiddleware,
+  requireRole("SUPERADMIN"),
+  licenseController.update
+);
 
-router.delete("/:id", authMiddleware, requireRole("SUPERADMIN"), param("id").isUUID(), licenseController.remove);
+// DELETE license
+router.delete(
+  "/:id",
+  authMiddleware,
+  requireRole("SUPERADMIN"),
+  licenseController.remove
+);
 
 module.exports = router;
 
