@@ -60,3 +60,4 @@ module.exports = (sequelize, DataTypes) => {
   return User;
 };
 
+// force rebuild Jeu 28 aoû 2025 05:42:11 CEST
