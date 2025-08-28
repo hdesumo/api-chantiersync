@@ -19,3 +19,4 @@ router.put("/:id", authMiddleware, requireRole("SUPERADMIN"), licenseController.
 router.delete("/:id", authMiddleware, requireRole("SUPERADMIN"), licenseController.remove);
 
 module.exports = router;
+

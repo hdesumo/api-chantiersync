@@ -1,4 +1,3 @@
-// models/License.js
 module.exports = (sequelize, DataTypes) => {
   const License = sequelize.define(
     "License",
@@ -13,7 +12,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       type: {
-        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"),
+        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"), // 👈 enum DB
         allowNull: false,
       },
       start_date: {
@@ -29,7 +28,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       status: {
-        type: DataTypes.ENUM("active", "expired", "suspended"),
+        type: DataTypes.ENUM("active", "expired", "suspended"), // 👈 enum DB
         allowNull: false,
         defaultValue: "active",
       },
@@ -43,8 +42,8 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     {
-      tableName: "licenses", // 👈 force le nom exact
-      timestamps: true,      // createdAt / updatedAt
+      tableName: "licenses",
+      timestamps: true,
     }
   );
 
