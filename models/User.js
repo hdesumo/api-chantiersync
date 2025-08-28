@@ -8,6 +8,10 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
+      full_name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       email: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -16,9 +20,9 @@ module.exports = (sequelize, DataTypes) => {
           isEmail: true,
         },
       },
-      password_hash: {
+      phone: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       role: {
         type: DataTypes.ENUM(
@@ -31,6 +35,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "ADMIN",
       },
+      password_hash: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      is_active: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+      },
       enterprise_id: {
         type: DataTypes.UUID,
         allowNull: true,
@@ -38,17 +50,24 @@ module.exports = (sequelize, DataTypes) => {
       tenantId: {
         type: DataTypes.UUID,
         allowNull: true,
-        field: "tenant_id", // 👈 DB = tenant_id, Sequelize expose tenantId
+        field: "tenant_id", // 👈 DB = tenant_id ; Sequelize = tenantId
       },
-      
+      createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+      },
     },
     {
-      tableName: "users",  // 👈 force le nom minuscule
-     
+      tableName: "users", // 👈 force minuscule
+      timestamps: true,   // Sequelize gère createdAt / updatedAt (camelCase)
+      // ❌ ne pas mettre underscored: true car ta DB utilise camelCase
     }
   );
 
   return User;
 };
 
-// force rebuild Jeu 28 aoû 2025 05:42:11 CEST
