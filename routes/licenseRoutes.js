@@ -1,36 +1,21 @@
-// routes/licenseRoutes.js
 const express = require("express");
 const router = express.Router();
-
+const { authMiddleware, requireRole } = require("../middleware/auth");
 const licenseController = require("../controllers/licenseController");
-const { authMiddleware, requireRole } = require("../middleware/auth.js");
 
-// 🔍 Debug log pour vérifier en prod
-console.log("✅ requireRole chargé :", typeof requireRole);
+// Récupérer toutes les licences
+router.get("/", authMiddleware, requireRole("SUPERADMIN"), licenseController.getAll);
 
-// Liste toutes les licenses (réservé SUPERADMIN)
-router.get(
-  "/",
-  authMiddleware,
-  requireRole("SUPERADMIN"),
-  licenseController.getAll
-);
+// Récupérer une licence par ID
+router.get("/:id", authMiddleware, requireRole("SUPERADMIN"), licenseController.getById);
 
-// Crée une nouvelle license (réservé SUPERADMIN)
-router.post(
-  "/",
-  authMiddleware,
-  requireRole("SUPERADMIN"),
-  licenseController.create
-);
+// Créer une nouvelle licence
+router.post("/", authMiddleware, requireRole("SUPERADMIN"), licenseController.create);
 
-// Supprime une license (réservé SUPERADMIN)
-router.delete(
-  "/:id",
-  authMiddleware,
-  requireRole("SUPERADMIN"),
-  licenseController.remove
-);
+// Mettre à jour une licence
+router.put("/:id", authMiddleware, requireRole("SUPERADMIN"), licenseController.update);
+
+// Supprimer une licence
+router.delete("/:id", authMiddleware, requireRole("SUPERADMIN"), licenseController.remove);
 
 module.exports = router;
-
