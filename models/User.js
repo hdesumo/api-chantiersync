@@ -1,29 +1,31 @@
-// models/User.js
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define("User", {
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
-      validate: { isEmail: true },
+      unique: true
     },
     password_hash: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: false
     },
     role: {
-      type: DataTypes.ENUM("SUPERADMIN", "TENANT_ADMIN", "MANAGER", "AGENT"),
-      defaultValue: "TENANT_ADMIN",
+      type: DataTypes.ENUM("SUPERADMIN", "ADMIN", "SITE_MANAGER", "TENANT_ADMIN", "AGENT"),
+      allowNull: false,
+      defaultValue: "USER"
     },
+    enterprise_id: {
+      type: DataTypes.UUID,
+      allowNull: true
+    },
+    tenantId: {
+      type: DataTypes.UUID,
+      allowNull: true
+    }
+  }, {
+    tableName: "users",   // 👈 forcer minuscule
+    underscored: true     // 👈 pour que Sequelize mappe created_at → createdAt
   });
-
-  User.associate = (models) => {
-    // Exemple : un user appartient à un tenant
-    User.belongsTo(models.Tenant, {
-      foreignKey: "tenantId",
-      as: "tenant",
-    });
-  };
 
   return User;
 };
