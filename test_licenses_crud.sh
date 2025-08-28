@@ -1,72 +1,54 @@
 #!/bin/bash
-API_URL="https://api-chantiersync-production.up.railway.app/api/licenses"
+
+API="https://api-chantiersync-production.up.railway.app/api/licenses"
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjMyNWYyNTM4LWY0ZGYtNDljYi04YjBiLThlZWFiMmNlNjJkZSIsInJvbGUiOiJTVVBFUkFETUlOIiwiaWF0IjoxNzU2MzU0MDA3LCJleHAiOjE3NTY0NDA0MDd9.TXLMwfMo0muq8MGH3aTFVXHEYcqgzSaPUiAns4DsdT4"
 
 echo "============================="
 echo "   🔍 TEST CRUD LICENSES"
 echo "============================="
 
-# Fonction utilitaire
-test_api() {
-  description=$1
-  method=$2
-  url=$3
-  data=$4
+# --- GET ALL
+echo -e "\n--- GET all licenses ---"
+curl -s -w "\nStatus: %{http_code}\n" -H "Authorization: Bearer $TOKEN" "$API"
 
-  echo -e "\n--- $description ---"
-  
-  if [ "$method" == "GET" ]; then
-    response=$(curl -s -w "\n%{http_code}" -X GET "$url" \
-      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
-  elif [ "$method" == "POST" ]; then
-    response=$(curl -s -w "\n%{http_code}" -X POST "$url" \
-      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-      -d "$data")
-  elif [ "$method" == "PUT" ]; then
-    response=$(curl -s -w "\n%{http_code}" -X PUT "$url" \
-      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-      -d "$data")
-  elif [ "$method" == "DELETE" ]; then
-    response=$(curl -s -w "\n%{http_code}" -X DELETE "$url" \
-      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
-  fi
+# --- CREATE
+echo -e "\n--- CREATE new license ---"
+CREATE_BODY=$(curl -s -X POST "$API" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "enterprise_id": "a77c6345-c79d-4c31-a1b1-2459e8178c05",
+        "type": "ANNUAL",
+        "start_date": "2025-09-01T00:00:00.000Z",
+        "end_date": "2026-09-01T00:00:00.000Z",
+        "max_users": 120,
+        "status": "active"
+      }')
 
-  body=$(echo "$response" | head -n -1)
-  status=$(echo "$response" | tail -n1)
+echo "Body: $CREATE_BODY"
+NEW_ID=$(echo "$CREATE_BODY" | jq -r '.id')
+echo "👉 New license ID: $NEW_ID"
 
-  echo "Status: $status"
-  echo "Body: $body"
+# --- GET BY ID
+echo -e "\n--- GET license by ID ($NEW_ID) ---"
+curl -s -w "\nStatus: %{http_code}\n" -H "Authorization: Bearer $TOKEN" "$API/$NEW_ID"
 
-  if [[ "$status" =~ ^2 ]]; then
-    echo "✅ $description réussi"
-  else
-    echo "❌ $description échoué"
-  fi
+# --- UPDATE
+echo -e "\n--- UPDATE license ($NEW_ID) ---"
+curl -s -w "\nStatus: %{http_code}\n" -X PUT "$API/$NEW_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "max_users": 200,
+        "status": "suspended"
+      }'
 
-  echo "$body"
-}
-
-# 1. GET all licenses
-test_api "GET all licenses" GET "$API_URL"
-
-# Récupère un ID existant
-LICENSE_ID=$(curl -s -X GET "$API_URL" -H "Authorization: Bearer $TOKEN" | jq -r '.[0].id')
-
-# 2. GET license by ID
-test_api "GET license by ID" GET "$API_URL/$LICENSE_ID"
-
-# 3. CREATE license
-NEW_LICENSE=$(test_api "CREATE license" POST "$API_URL" '{"enterprise_id":"a77c6345-c79d-4c31-a1b1-2459e8178c05","type":"ANNUAL","start_date":"2025-09-01T00:00:00.000Z","end_date":"2026-09-01T00:00:00.000Z","max_users":120,"status":"active"}')
-NEW_LICENSE_ID=$(echo "$NEW_LICENSE" | jq -r '.id')
-
-# 4. UPDATE license
-test_api "UPDATE license" PUT "$API_URL/$NEW_LICENSE_ID" '{"max_users":200,"status":"suspended"}'
-
-# 5. DELETE license
-test_api "DELETE license" DELETE "$API_URL/$NEW_LICENSE_ID"
+# --- DELETE
+echo -e "\n--- DELETE license ($NEW_ID) ---"
+curl -s -w "\nStatus: %{http_code}\n" -X DELETE "$API/$NEW_ID" \
+  -H "Authorization: Bearer $TOKEN"
 
 echo -e "\n============================="
 echo "   ✅ FIN DES TESTS CRUD"
 echo "============================="
-
 

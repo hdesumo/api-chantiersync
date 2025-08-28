@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const { login } = require("../controllers/authController");
+const authController = require("../controllers/authController");
 
-// ✅ la fonction existe bien
-router.post("/login", login);
+router.post("/login", authController.login);
 
 module.exports = router;
 
