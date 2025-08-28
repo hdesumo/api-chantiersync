@@ -1,10 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const authController = require("../controllers/authController");
+const { login } = require("../controllers/authController");
 
-// ✅ toutes les routes auth sous /api/auth
-router.post("/login", authController.login);
-router.post("/register", authController.register);
+// ✅ la fonction existe bien
+router.post("/login", login);
 
-module.exports = router; // ⚡ bien exporter directement le router
+module.exports = router;
 
