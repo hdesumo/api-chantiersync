@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       type: {
-        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"), // doit matcher DB
+        type: DataTypes.ENUM("TRIAL", "MONTHLY", "ANNUAL"), // valeurs de enum_licenses_type
         allowNull: false,
       },
       start_date: {
@@ -24,28 +24,28 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: false,
       },
-      quota: {
+      max_users: {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
       status: {
-        type: DataTypes.ENUM("active", "expired", "suspended"), // doit matcher DB
+        type: DataTypes.ENUM("active", "expired", "suspended"), // valeurs de enum_licenses_status
         allowNull: false,
         defaultValue: "active",
       },
       createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
-        field: "createdAt", // 👈 DB a bien createdAt, pas created_at
+        field: "created_at", // map DB → Sequelize camelCase
       },
       updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
-        field: "updatedAt",
+        field: "updated_at",
       },
     },
     {
-      tableName: "licenses", // 👈 assure Sequelize qu'il utilise la bonne table
+      tableName: "licenses",
       timestamps: true,
     }
   );
