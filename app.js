@@ -6,6 +6,9 @@ const bodyParser = require("body-parser");
 
 const app = express();
 
+console.log("📂 Auth middleware chargé depuis :", require.resolve("./middleware/auth"));
+
+
 // Middlewares
 app.use(cors());
 app.use(morgan("dev"));
