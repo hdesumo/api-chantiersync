@@ -1,55 +1,35 @@
-const { License } = require("../models");
+const { validationResult } = require("express-validator");
+const License = require("../models/License");
 
 exports.getAll = async (req, res) => {
   try {
-    const licenses = await License.findAll({ order: [["createdAt", "DESC"]] });
-    res.json(licenses);
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // Filtrage (status, type, enterprise_id)
+    const where = {};
+    if (req.query.status) where.status = req.query.status;
+    if (req.query.type) where.type = req.query.type;
+    if (req.query.enterprise_id) where.enterprise_id = req.query.enterprise_id;
+
+    const { rows, count } = await License.findAndCountAll({
+      where,
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]]
+    });
+
+    return res.json({
+      total: count,
+      page,
+      pages: Math.ceil(count / limit),
+      data: rows
+    });
   } catch (err) {
     console.error("Erreur SQL getAll:", err);
-    res.status(500).json({ error: "Impossible de récupérer les licenses" });
-  }
-};
-
-exports.getById = async (req, res) => {
-  try {
-    const license = await License.findByPk(req.params.id);
-    if (!license) return res.status(404).json({ error: "License non trouvée" });
-    res.json(license);
-  } catch (err) {
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-};
-
-exports.create = async (req, res) => {
-  try {
-    const license = await License.create(req.body);
-    res.status(201).json(license);
-  } catch (err) {
-    res.status(500).json({ error: "Impossible de créer la license" });
-  }
-};
-
-exports.update = async (req, res) => {
-  try {
-    const license = await License.findByPk(req.params.id);
-    if (!license) return res.status(404).json({ error: "License non trouvée" });
-
-    await license.update(req.body);
-    res.json(license);
-  } catch (err) {
-    res.status(500).json({ error: "Impossible de mettre à jour la license" });
-  }
-};
-
-exports.remove = async (req, res) => {
-  try {
-    const license = await License.findByPk(req.params.id);
-    if (!license) return res.status(404).json({ error: "License non trouvée" });
-
-    await license.destroy();
-    res.json({ message: "License supprimée avec succès" });
-  } catch (err) {
-    res.status(500).json({ error: "Impossible de supprimer la license" });
+    return res.status(500).json({ error: "Impossible de récupérer les licenses" });
   }
 };
 

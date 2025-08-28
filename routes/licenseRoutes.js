@@ -1,48 +1,36 @@
-// routes/licenseRoutes.js
 const express = require("express");
-const router = express.Router();
+const { body, param, query } = require("express-validator");
 const licenseController = require("../controllers/licenseController");
 const { authMiddleware, requireRole } = require("../middleware/auth");
 
-// GET all licenses
-router.get(
-  "/",
-  authMiddleware,
-  requireRole("SUPERADMIN"),
-  licenseController.getAll
-);
+const router = express.Router();
 
-// GET license by ID
+// Validation rules
+const licenseValidation = [
+  body("enterprise_id").isUUID().withMessage("enterprise_id doit être un UUID valide"),
+  body("type").isIn(["TRIAL", "MONTHLY", "ANNUAL"]).withMessage("type invalide"),
+  body("start_date").isISO8601().toDate().withMessage("start_date doit être une date valide"),
+  body("end_date").isISO8601().toDate().withMessage("end_date doit être une date valide"),
+  body("max_users").isInt({ min: 1 }).withMessage("max_users doit être un entier positif"),
+  body("status").isIn(["active", "expired", "suspended"]).withMessage("status invalide")
+];
+
+// CRUD
+router.get("/", authMiddleware, requireRole("SUPERADMIN"), licenseController.getAll);
+
 router.get(
   "/:id",
   authMiddleware,
   requireRole("SUPERADMIN"),
+  param("id").isUUID().withMessage("ID invalide"),
   licenseController.getById
 );
 
-// CREATE license
-router.post(
-  "/",
-  authMiddleware,
-  requireRole("SUPERADMIN"),
-  licenseController.create
-);
+router.post("/", authMiddleware, requireRole("SUPERADMIN"), licenseValidation, licenseController.create);
 
-// UPDATE license
-router.put(
-  "/:id",
-  authMiddleware,
-  requireRole("SUPERADMIN"),
-  licenseController.update
-);
+router.put("/:id", authMiddleware, requireRole("SUPERADMIN"), licenseValidation, licenseController.update);
 
-// DELETE license
-router.delete(
-  "/:id",
-  authMiddleware,
-  requireRole("SUPERADMIN"),
-  licenseController.remove
-);
+router.delete("/:id", authMiddleware, requireRole("SUPERADMIN"), param("id").isUUID(), licenseController.remove);
 
 module.exports = router;
 
