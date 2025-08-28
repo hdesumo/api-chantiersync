@@ -1,15 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const auth = require("../middleware/auth");
+const { authMiddleware, requireRole } = require("../middleware/auth");
 const licenseController = require("../controllers/licenseController");
 
-// Route accessible à tout utilisateur connecté
-router.get("/", auth(), licenseController.listLicenses);
+// ✅ Liste toutes les licences (SuperAdmin uniquement)
+router.get("/", authMiddleware, requireRole("SUPERADMIN"), licenseController.getAll);
 
-// Route accessible uniquement au SUPERADMIN
-router.post("/create", auth(["SUPERADMIN"]), licenseController.createLicense);
+// ✅ Licence de l'entreprise du tenant
+router.get("/mine", authMiddleware, requireRole("TENANT_ADMIN"), licenseController.getMine);
 
-router.get("/mine", auth(), licenseController.getMyLicenses);
+// ✅ Renouveler une licence (SuperAdmin uniquement)
+router.post("/renew/:id", authMiddleware, requireRole("SUPERADMIN"), licenseController.renew);
 
-module.exports = router;
+module.exports = router; // ⚡ bien exporter directement le router
 

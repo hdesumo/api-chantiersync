@@ -1,22 +1,10 @@
-"use strict";
+const express = require("express");
+const router = express.Router();
+const authController = require("../controllers/authController");
 
-module.exports = {
-  async up(queryInterface) {
-    // Ajout des rôles manquants dans l'ENUM Postgres
-    await queryInterface.sequelize.query(`
-      ALTER TYPE "enum_users_role" ADD VALUE IF NOT EXISTS 'TENANT_ADMIN';
-    `);
-    await queryInterface.sequelize.query(`
-      ALTER TYPE "enum_users_role" ADD VALUE IF NOT EXISTS 'MANAGER';
-    `);
-    await queryInterface.sequelize.query(`
-      ALTER TYPE "enum_users_role" ADD VALUE IF NOT EXISTS 'AGENT';
-    `);
-  },
+// ✅ toutes les routes auth sous /api/auth
+router.post("/login", authController.login);
+router.post("/register", authController.register);
 
-  async down() {
-    // ⚠️ Pas de rollback simple possible pour ENUM dans Postgres
-    console.warn("Rollback non supporté pour les ENUM Postgres");
-  },
-};
+module.exports = router; // ⚡ bien exporter directement le router
 
