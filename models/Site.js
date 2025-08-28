@@ -24,6 +24,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING(64),
         allowNull: true,
       },
+        slug: {
+          type: DataTypes.STRING,
+          allowNull: false,
+          unique: true
+        },
       // scoping métier par enterprise_id (tenant)
       enterprise_id: {
         type: DataTypes.UUID,
