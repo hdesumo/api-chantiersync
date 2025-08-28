@@ -1,36 +1,40 @@
 // controllers/licenseController.js
 const { License } = require("../models");
 
-exports.listLicenses = async (req, res) => {
+// Récupérer toutes les licenses
+async function getAll(req, res) {
   try {
     const licenses = await License.findAll();
-    res.json(licenses);
+    return res.json(licenses);
   } catch (err) {
-    console.error("❌ Error listing licenses:", err);
-    res.status(500).json({ error: "Failed to list licenses" });
+    console.error("Erreur getAll:", err);
+    return res.status(500).json({ error: "Impossible de récupérer les licenses" });
   }
-};
+}
 
-exports.createLicense = async (req, res) => {
+// Créer une nouvelle license
+async function create(req, res) {
   try {
-    const license = await License.create(req.body);
-    res.status(201).json(license);
+    const { key, tenantId } = req.body;
+    const license = await License.create({ key, tenantId });
+    return res.status(201).json(license);
   } catch (err) {
-    console.error("❌ Error creating license:", err);
-    res.status(500).json({ error: "Failed to create license" });
+    console.error("Erreur create:", err);
+    return res.status(500).json({ error: "Impossible de créer la license" });
   }
-};
+}
 
-exports.getMyLicenses = async (req, res) => {
+// Supprimer une license
+async function remove(req, res) {
   try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-    const licenses = await License.findAll({ where: { userId } });
-    res.json(licenses);
+    const { id } = req.params;
+    await License.destroy({ where: { id } });
+    return res.status(204).send();
   } catch (err) {
-    console.error("❌ Error fetching user licenses:", err);
-    res.status(500).json({ error: "Failed to fetch user licenses" });
+    console.error("Erreur remove:", err);
+    return res.status(500).json({ error: "Impossible de supprimer la license" });
   }
-};
+}
+
+module.exports = { getAll, create, remove };
 
